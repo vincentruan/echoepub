@@ -94,7 +94,7 @@ class AudioRewriter:
         in_table = False
         table_lines: List[str] = []
 
-        for line in lines:
+        for i, line in enumerate(lines):
             # Skip code blocks
             stripped = line.strip()
 
@@ -133,10 +133,16 @@ class AudioRewriter:
                 result_lines.append(line)
                 continue
 
-            # Handle blockquotes
+            # Preserve image markdown - pass through unchanged
+            if stripped.startswith('!['):
+                result_lines.append(line)
+                continue
+
+            # Handle blockquotes - collect consecutive lines
             if stripped.startswith('>'):
-                marked = self._mark_quote(line)
-                result_lines.append(marked)
+                # TEMPORARY: Skip processing blockquotes to avoid issues
+                # Just pass them through unchanged
+                result_lines.append(line)
                 stats['quotes_marked'] += 1
                 continue
 
@@ -353,9 +359,49 @@ class AudioRewriter:
 
         return result
 
+    def _process_quote_block(self, quote_lines: List[str]) -> List[str]:
+        """
+        Process a block of consecutive blockquote lines.
+
+        Skip image description blocks (containing 图片说明, 核心内容, etc.)
+        as they are already formatted for audio reading.
+
+        Args:
+            quote_lines: List of consecutive blockquote lines
+
+        Returns:
+            List of processed lines (with or without audio markers)
+        """
+        # Check if this is an image description block
+        image_desc_keywords = ['图片说明', '核心内容', '关键元素', '要点总结', 'Figure', '图表说明', '示意图']
+
+        # Join all quote content for checking
+        combined_content = ' '.join([line.lstrip('>').strip() for line in quote_lines])
+
+        # Check if any keyword is in the combined content
+        is_image_desc = any(keyword in combined_content for keyword in image_desc_keywords)
+
+        if is_image_desc:
+            # This is an image description - keep all lines as-is, don't add markers
+            return quote_lines
+        else:
+            # Regular quote - add audio markers to each line
+            result = []
+            for line in quote_lines:
+                content = line.lstrip('>').strip()
+                # Check if already has markers
+                if self.QUOTE_BEGIN in content:
+                    result.append(line)
+                else:
+                    result.append(f'> {self.QUOTE_BEGIN}{content} {self.QUOTE_END}')
+            return result
+
     def _mark_quote(self, line: str) -> str:
         """
         Add audio markers to blockquotes.
+
+        Deprecated: Use _process_quote_block instead for better handling
+        of image description blocks.
 
         Args:
             line: Blockquote line

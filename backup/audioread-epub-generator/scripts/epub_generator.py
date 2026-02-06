@@ -408,8 +408,16 @@ class EPUBGenerator:
 
             full_path = Path(self.base_path) / src_clean
 
+            # Ensure base_path is absolute
+            if self.base_path and not Path(self.base_path).is_absolute():
+                self.base_path = str(Path(self.base_path).resolve())
+                full_path = Path(self.base_path) / src_clean
+
             if not full_path.exists():
                 print(f"Warning: Image not found - {src}")
+                print(f"  Base path: {self.base_path}")
+                print(f"  Resolved to: {full_path}")
+                print(f"  Absolute base: {Path(self.base_path).resolve()}")
                 continue
 
             # Determine EPUB internal path

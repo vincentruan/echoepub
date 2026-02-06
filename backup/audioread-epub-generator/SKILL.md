@@ -122,6 +122,46 @@ For each image/chart, generate at least:
 4. Key points summary (3-7 items, short sentences)
 5. If uncertain (e.g., blurry image), state "details uncertain" to avoid fabrication
 
+### Smart Fallback Mode (Default: Enabled)
+
+When AI image analysis fails (API timeout, error, or unavailable), the skill automatically generates placeholder descriptions for **important images** using a smart filtering system.
+
+**Important Images** (get placeholder descriptions):
+- Architecture diagrams (架构图)
+- Flowcharts (流程图)
+- Data charts (数据图表)
+- Tables (数据表)
+- Comparison charts (对比图)
+- Screenshots (界面截图)
+- Diagrams with semantic content
+
+**Skipped Images** (no description):
+- QR codes (二维码)
+- Cover images (封面)
+- Author photos (作者照片)
+- Decorations (装饰图)
+- Icons/Logos (图标)
+
+**Placeholder Format** (Always in blockquotes):
+```markdown
+> **图片说明**：这是一张架构图。
+> **核心内容**：展示系统结构或组件关系：秒杀架构
+> **关键元素**：请查看原图片获取详细信息
+>
+> **要点总结**：
+> - 第一，该图片为重要示意图，建议查看原图。
+> - 第二，图片包含关键信息，有助于理解正文内容。
+> - 第三，AI图片描述功能暂未启用或分析失败。
+> - 第四，如需详细说明，建议人工审核或查看原图。
+```
+
+**Benefits**:
+- ✅ All important images are marked with blockquote descriptions
+- ✅ TTS will read image descriptions for better listening experience
+- ✅ No meaningless descriptions for QR codes, covers, etc.
+- ✅ Fast processing - no need to wait for AI API
+- ✅ Extensible - placeholders can be replaced with AI descriptions later
+
 ## Quality Thresholds (Self-check Before Output)
 
 - **TOC usable**: Chapter hierarchy correct, TOC navigable

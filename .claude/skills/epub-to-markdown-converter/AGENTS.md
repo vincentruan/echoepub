@@ -13,7 +13,7 @@ A Claude Code skill that enables efficient reading of EPUB ebook files.
 ## Directory Structure
 
 ```
-~/.claude/skills/epub/
+./
 ├── SKILL.md                              # Skill definition (triggers on EPUB-related requests)
 ├── AGENTS.md                             # This documentation
 ├── CLAUDE.md -> AGENTS.md                # Symlink
@@ -36,19 +36,19 @@ A Claude Code skill that enables efficient reading of EPUB ebook files.
 
 ```bash
 # View metadata
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js metadata "<file.epub>"
+node ./scripts/epub-reader/dist/index.js metadata "<file.epub>"
 
 # List table of contents
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js toc "<file.epub>"
+node ./scripts/epub-reader/dist/index.js toc "<file.epub>"
 
 # Read specific chapter (1-indexed)
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js chapter "<file.epub>" <number>
+node ./scripts/epub-reader/dist/index.js chapter "<file.epub>" <number>
 
 # Extract entire book
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js full "<file.epub>"
+node ./scripts/epub-reader/dist/index.js full "<file.epub>"
 
 # Search for text
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js search "<file.epub>" "<query>"
+node ./scripts/epub-reader/dist/index.js search "<file.epub>" "<query>"
 ```
 
 ## How the Skill Works
@@ -62,7 +62,7 @@ node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js search "<file.epub>
 If you need to modify and rebuild:
 
 ```bash
-cd ~/.claude/skills/epub/scripts/epub-reader
+cd ./scripts/epub-reader
 npm install
 npm run build
 ```

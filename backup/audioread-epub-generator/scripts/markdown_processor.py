@@ -432,15 +432,33 @@ class MarkdownProcessor:
                 in_table = False
                 # Fall through to process current line
 
-            # Handle blockquotes
+            # Handle blockquotes - collect consecutive quote lines
             if line.strip().startswith('>'):
                 if current_paragraph:
                     paragraph_text = ' '.join(current_paragraph).strip()
                     if paragraph_text:
                         html_parts.append(f'<p>{MarkdownProcessor._render_inline(paragraph_text)}</p>')
                     current_paragraph = []
-                quote_text = line.lstrip('> ').strip()
-                html_parts.append(f'<blockquote>{MarkdownProcessor._render_inline(quote_text)}</blockquote>')
+
+                # Collect all consecutive quote lines into a single blockquote
+                quote_lines = [line.lstrip('> ').strip()]
+
+                # Peek ahead to collect consecutive quote lines
+                current_idx = lines.index(line)
+                for next_line in lines[current_idx + 1:]:
+                    if next_line.strip().startswith('>'):
+                        quote_lines.append(next_line.lstrip('> ').strip())
+                    else:
+                        break
+
+                # Render each quote line first, filter out empty lines, then join with <br>
+                rendered_quotes = [MarkdownProcessor._render_inline(ql) for ql in quote_lines if ql.strip()]
+                quote_text = '<br/>'.join(rendered_quotes)
+                html_parts.append(f'<blockquote>{quote_text}</blockquote>')
+
+                # Skip the quote lines we just processed
+                num_quote_lines = len(quote_lines)
+                lines[current_idx:current_idx + num_quote_lines] = [''] * num_quote_lines
                 continue
 
             # Handle headers
@@ -788,4 +806,94 @@ class MarkdownProcessor:
             return 'syn-class'
         else:
             return None
+
+
+def is_blank_page(content: str, min_char_threshold: int = 50) -> Tuple[bool, str]:
+    """
+    Detect if a page/chapter is blank or should be filtered out.
+
+    A page is considered blank if:
+    - Contains only whitespace characters
+    - Contains only a single image reference with no text description
+    - Has less than min_char_threshold characters and no headers
+
+    Args:
+        content: Page content to check
+        min_char_threshold: Minimum character count threshold (default: 50)
+
+    Returns:
+        Tuple of (is_blank, reason)
+        - is_blank: True if page should be filtered
+        - reason: String explaining why
+    """
+    if not content:
+        return True, "Empty content"
+
+    # Remove common markdown elements for analysis
+    content_stripped = content.strip()
+
+    # Check if only whitespace
+    if not content_stripped:
+        return True, "Only whitespace"
+
+    # Check for headers (H1-H6) - pages with headers are never blank
+    header_pattern = r'^#{1,6}\s+.+$'
+    if re.search(header_pattern, content_stripped, re.MULTILINE):
+        return False, "Has headers"
+
+    # Count non-whitespace characters
+    non_whitespace = re.sub(r'\s+', '', content_stripped)
+
+    # Check character count
+    if len(non_whitespace) < min_char_threshold:
+        # Check if it's just an image reference
+        img_pattern = r'^!\[([^\]]*)\]\(([^)]+)\)$'
+        if re.match(img_pattern, content_stripped.strip(), re.MULTILINE):
+            return True, f"Only image reference ({len(non_whitespace)} chars)"
+        else:
+            return True, f"Below character threshold ({len(non_whitespace)} < {min_char_threshold})"
+
+    return False, "Has content"
+
+
+def filter_blank_pages(markdown_content: str, keep_blank_pages: bool = False) -> Tuple[str, int]:
+    """
+    Filter out blank pages from markdown content.
+
+    Splits content by H1 headers (# Title) and removes blank chapters.
+
+    Args:
+        markdown_content: Full markdown content
+        keep_blank_pages: If True, don't filter (default: False)
+
+    Returns:
+        Tuple of (filtered_content, removed_count)
+    """
+    if keep_blank_pages:
+        return markdown_content, 0
+
+    # Split by H1 headers
+    chapters = re.split(r'\n(?=# .+\n)', markdown_content)
+
+    filtered_chapters = []
+    removed_count = 0
+
+    for chapter in chapters:
+        chapter = chapter.strip()
+        if not chapter:
+            continue
+
+        is_blank, reason = is_blank_page(chapter)
+
+        if is_blank:
+            removed_count += 1
+            # Extract chapter title for logging
+            title_match = re.match(r'^# (.+)$', chapter, re.MULTILINE)
+            title = title_match.group(1) if title_match else "Untitled"
+            print(f"  → Filtering blank page: '{title}' ({reason})")
+        else:
+            filtered_chapters.append(chapter)
+
+    return '\n\n'.join(filtered_chapters), removed_count
+
 

@@ -1,298 +1,261 @@
 ---
-name: markdown-to-epub-converter
-description: Convert markdown documents and chat summaries into formatted EPUB ebook files that can be read on any device or uploaded to Kindle.
+name: markdown-to-epub
+description: Convert standard Markdown folder to EPUB ebook. Creates professional ebooks with cover, table of contents, chapters, and embedded images. Final step in the audioread pipeline.
 ---
 
-# Markdown to EPUB Converter Skill
+# Markdown to EPUB Converter
 
-This skill transforms markdown documents into professional EPUB ebook files. Perfect for converting research documents, blog posts, articles, or chat conversation summaries into portable, device-agnostic ebook formats.
+将标准 Markdown 目录结构转换为专业的 EPUB 电子书，包含封面、目录、章节和嵌入图片。
 
-## Overview
+## 输入格式
 
-The skill accepts markdown content in multiple formats and generates a properly formatted EPUB3 file that works across all major ebook readers including:
-- Apple Books
-- Amazon Kindle (via Kindle for Mac/Windows/iOS/Android)
-- Google Play Books
-- Kobo and other EPUB readers
-- Any standard EPUB reader
-
-## Input Formats
-
-### Option 1: Raw Markdown Text
-Provide markdown content directly in your message:
+接受标准 Markdown 目录结构（由上游技能生成）：
 
 ```
-Convert this markdown to EPUB:
-# My Book Title
-## Chapter 1
-This is chapter one content...
+$原文件名_markdown/
+├── 00_目录.md                 # 目录文件
+├── 01_章节.md                 # 章节文件
+├── 02_章节.md
+├── images/                    # 图片资源
+│   └── ...
+└── $原文件名_report.md        # 处理报告
 ```
 
-### Option 2: File Path
-Provide a path to a markdown file to be converted.
+## 输出
 
-## How It Works
+生成完整的 EPUB3 电子书：
 
-1. **Markdown Parsing**: Analyzes your markdown and automatically:
-   - Treats H1 headers (`#`) as chapter boundaries
-   - Treats H2 headers (`##`) as section headings within chapters
-   - Preserves formatting (bold, italic, links, lists, code blocks)
+```
+$原文件名_markdown/
+├── [书名].epub               # 生成的电子书
+├── cover.jpg                 # 封面图片（AI生成或自动生成）
+└── ...（其他文件保持不变）
+```
 
-2. **Structure Generation**: Creates proper EPUB structure:
-   - Automatic table of contents from chapters
-   - Navigation document (EPUB3 standard)
-   - Metadata (title, language, etc.)
+## 使用方法
 
-3. **File Creation**: Generates a valid EPUB3 file ready for download and use
+### 从标准 Markdown 目录生成 EPUB
 
-## Usage Examples
+```python
+from epub_generator import create_epub_from_folder
 
-### Example 1: Convert a Blog Post
-"Convert this markdown blog post to EPUB:
-# How to Build a Simple Web Server
-## Introduction
-...content..."
+create_epub_from_folder(
+    folder_path="/path/to/book_markdown",
+    title="书名",
+    author="作者",
+    generate_cover=True,
+    cover_style="modern"
+)
+```
 
-### Example 2: Convert a Research Summary
-"I have research notes in markdown format. Convert them to an EPUB ebook. The content is:
-# Research Project: Machine Learning Basics
-## Chapter 1: Fundamentals
-..."
+### 从单个 Markdown 文件生成 EPUB
 
-### Example 3: Convert a Chat Summary
-"Summarize our conversation so far as markdown and convert it to an EPUB for reference"
-
-## Output
-
-The skill generates a downloadable EPUB file that includes:
-- Professional formatting
-- Automatic table of contents
-- Proper chapter structure
-- Support for markdown formatting elements:
-  - Headers (all levels)
-  - Bold and italic text
-  - Hyperlinks
-  - Lists (ordered and unordered)
-  - Code blocks and inline code
-  - Blockquotes
-  - Horizontal rules
-
-## Markdown Elements Supported
-
-| Element | Markdown | Support | Notes |
-|---------|----------|---------|-------|
-| Headers | `# H1` through `###### H6` | Full | Auto TOC generation |
-| Bold | `**text**` or `__text__` | Full | |
-| Italic | `*text*` or `_text_` | Full | |
-| Links | `[text](url)` | Full | Clickable in ebooks |
-| **Images** | `![alt](path)` | **Full** | Embedded in EPUB, auto-scaled |
-| Lists | `- item` or `1. item` | Full | Nested lists supported |
-| Code blocks | ` ```language ` | **Enhanced** | Syntax highlighting ready, monospace fonts |
-| Inline code | ` `code` ` | **Enhanced** | Styled background, borders |
-| Tables | Markdown tables | **Enhanced** | Styled headers, alternating rows |
-| Blockquotes | `> quote` | Full | Styled with left border |
-| Horizontal rule | `---` or `***` | Full | |
-
-## Advanced Features
-
-### AI-Generated Cover Images
-
-The skill can automatically generate professional book cover images using AI:
-
-#### Prerequisites
-
-1. Set the `SILICONFLOW_API_KEY` environment variable with your SiliconFlow API key
-2. The `requests` library must be installed
-
-#### Usage
-
-**Option 1: Auto-generate cover**
 ```python
 from epub_generator import create_epub_from_markdown
 
 create_epub_from_markdown(
     markdown_content=content,
     output_path="book.epub",
-    title="My Book",
-    base_path="/path/to/book/directory",
-    generate_cover=True,  # Enable AI cover generation
-    cover_style="modern"  # Style: modern, classic, minimalist, artistic
+    title="书名",
+    author="作者",
+    base_path="/path/to/images",
+    generate_cover=True
 )
 ```
 
-**Option 2: Use existing cover image**
+## 功能特性
+
+### 1. 封面生成
+
+支持两种封面生成方式：
+
+#### AI 封面（推荐）
+
+使用 SiliconFlow API 生成专业封面：
+
 ```python
-create_epub_from_markdown(
-    markdown_content=content,
-    output_path="book.epub",
-    title="My Book",
-    cover_path="/path/to/cover.jpg"  # Use your own cover image
+create_epub_from_folder(
+    folder_path=path,
+    generate_cover=True,
+    cover_style="modern"  # modern, classic, minimalist, artistic
 )
 ```
 
-#### Cover Styles
+**环境变量**：`SILICONFLOW_API_KEY`
 
-| Style | Description |
-| ----- | ----------- |
-| `modern` | Clean lines, contemporary aesthetics, subtle gradients |
-| `classic` | Traditional elegance, rich textures, ornate borders |
-| `minimalist` | Maximum whitespace, single focal element |
-| `artistic` | Expressive visuals, abstract elements, bold colors |
+#### 程序化封面
 
-#### How It Works
-
-1. Analyzes the book title and chapter titles to extract themes
-2. Builds an optimized prompt based on detected themes (economics, history, technology, etc.)
-3. Calls SiliconFlow's image generation API (Qwen/Qwen-Image-Edit-2509 model)
-4. Downloads and embeds the generated cover into the EPUB
-
-#### Cover Generator Script
-
-You can also use the cover generator standalone:
+无需 API，自动生成简洁封面：
 
 ```python
-from cover_generator import generate_cover_from_markdown
+create_epub_from_folder(
+    folder_path=path,
+    generate_cover=True,
+    use_programmatic_cover=True
+)
+```
 
-success, result = generate_cover_from_markdown(
+### 2. 目录生成
+
+自动从章节文件生成导航目录：
+
+- 支持多级标题层次
+- 可点击跳转
+- 符合 EPUB3 标准
+
+### 3. 图片处理
+
+#### 图片格式转换
+
+自动将不兼容格式转换为 EPUB 兼容格式：
+
+| 原格式 | 转换后 | 说明 |
+|--------|--------|------|
+| WebP | JPEG | 透明背景转白色 |
+| GIF | JPEG | 取第一帧 |
+| BMP | JPEG | 直接转换 |
+| PNG | PNG | 保持不变 |
+| JPEG | JPEG | 保持不变 |
+
+#### 图片嵌入
+
+- 自动扫描 Markdown 中的图片引用
+- 解析相对路径并嵌入 EPUB
+- 自动调整图片尺寸适配阅读器
+
+### 4. 文本优化（可选）
+
+启用文本优化功能：
+
+```python
+create_epub_from_folder(
+    folder_path=path,
+    optimize_text=True  # 错别字纠正、格式优化
+)
+```
+
+### 5. 样式定制
+
+内置专业阅读样式：
+
+- 大行距，适合阅读
+- 清晰的标题层级
+- 代码块语法高亮样式
+- 表格斑马纹显示
+- 引用块左边框样式
+
+## 完整工作流示例
+
+```python
+import os
+import sys
+
+# 添加脚本路径
+skill_path = os.path.expanduser('./scripts')
+sys.path.insert(0, skill_path)
+
+from epub_generator import create_epub_from_folder
+
+# 从标准 Markdown 目录生成 EPUB
+result = create_epub_from_folder(
+    folder_path="/path/to/趋势与周期_markdown",
     title="趋势与周期",
-    chapters=["经济分析", "房地产泡沫", "金融危机"],
-    author="叶泊枫",
-    output_path="./cover.jpg",
-    style="modern"
+    author="作者名",
+    language="zh-CN",
+    generate_cover=True,
+    cover_style="modern",
+    optimize_text=True
 )
 
-if success:
-    print(f"Cover saved to: {result}")
-else:
-    print(f"Error: {result}")
+print(f"EPUB 生成成功: {result}")
 ```
 
-### Image Support
+## API 参考
 
-Images are fully supported and embedded directly into the EPUB file:
-
-- **Automatic embedding**: All referenced images are packaged into the EPUB
-- **Path resolution**: Supports relative paths (`./images/photo.jpg`) and absolute paths
-- **Format support**: JPG, JPEG, PNG, GIF, WebP, SVG
-- **Responsive sizing**: Images automatically scale to fit the screen
-- **Centered display**: Standalone images are centered with proper margins
-
-Example:
-```markdown
-![Chart showing economic trends](./images/chart.jpg)
-```
-
-**Important**: When converting markdown with images, provide the `base_path` parameter to specify where images are located:
+### create_epub_from_folder
 
 ```python
-from epub_generator import create_epub_from_markdown
-
-create_epub_from_markdown(
-    markdown_content=content,
-    output_path="book.epub",
-    title="My Book",
-    base_path="/path/to/markdown/directory"  # Directory containing images
-)
+def create_epub_from_folder(
+    folder_path: str,
+    title: str = None,           # 从目录文件提取
+    author: str = "Unknown",
+    language: str = "zh-CN",
+    generate_cover: bool = True,
+    cover_style: str = "modern",
+    use_programmatic_cover: bool = False,
+    cover_path: str = None,      # 使用已有封面
+    optimize_text: bool = False,
+) -> str:
+    """从标准 Markdown 目录生成 EPUB"""
 ```
 
-### Enhanced Code Block Support
+### create_epub_from_markdown
 
-Code blocks are beautifully formatted with:
-- **Premium monospace fonts**: SF Mono, Monaco, Fira Code, Consolas, and more
-- **Styled backgrounds**: Subtle gray background with blue accent border
-- **Language detection**: Specify language after ` ``` ` for future syntax highlighting
-- **Proper escaping**: HTML characters are safely escaped
-- **Overflow handling**: Horizontal scrolling for long lines
-
-Example:
 ```python
-def fibonacci(n):
-    if n <= 1:
-        return n
-    return fibonacci(n-1) + fibonacci(n-2)
+def create_epub_from_markdown(
+    markdown_content: str,
+    output_path: str,
+    title: str,
+    author: str = "Unknown",
+    language: str = "zh-CN",
+    base_path: str = None,       # 图片基础目录
+    generate_cover: bool = False,
+    cover_style: str = "modern",
+    cover_path: str = None,
+) -> str:
+    """从 Markdown 内容生成 EPUB"""
 ```
 
-### Enhanced Table Support
+## 依赖
 
-Tables are rendered with professional styling:
-- **Styled headers**: Blue background with white text
-- **Alternating rows**: Zebra striping for readability
-- **Cell padding**: Comfortable spacing for easy reading
-- **Inline formatting**: Code, bold, italic, and links work in cells
-- **Responsive**: Tables adapt to different screen sizes
+```bash
+pip install ebooklib Pillow
+```
 
-Example:
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Headers | ✓ | Full support |
-| Code | ✓ | Enhanced styling |
-| Tables | ✓ | Professional layout |
+可选（AI 封面生成）：
+```bash
+pip install requests
+```
 
-### Custom Title and Metadata
-You can specify EPUB metadata:
-- Book title (defaults to first H1 header)
-- Author name
-- Language
-- Publication date
+## 脚本列表
 
-### Chapter Organization
-Chapters are automatically detected from:
-- H1 headers (`#`) as primary chapter breaks
-- Logical content sections between H1s
-- Automatic page breaks between chapters
+| 脚本 | 功能 |
+|------|------|
+| `epub_generator.py` | EPUB 文件生成核心 |
+| `markdown_processor.py` | Markdown 解析和 HTML 转换 |
+| `cover_generator.py` | AI 封面生成 |
+| `programmatic_cover.py` | 程序化封面生成 |
+| `convert_images.py` | 图片格式转换 |
 
-### Styling
-The generated EPUB uses clean, readable default styling that:
-- Respects the reader's font preferences
-- Works on all screen sizes
-- Maintains proper spacing and hierarchy
-- Includes appropriate margins and padding
+## 错误处理
 
-## Technical Details
+| 错误 | 解决方案 |
+|------|----------|
+| 图片嵌入失败 | 检查图片路径是否正确，确保 base_path 设置正确 |
+| 封面生成失败 | 检查 API Key，或使用程序化封面 |
+| EPUB 打开失败 | 检查 Markdown 格式，确保标题层级正确 |
 
-- **Format**: EPUB3 (compatible with all modern readers)
-- **Encoding**: UTF-8
-- **HTML Version**: XHTML 1.1
-- **CSS Support**: Responsive styling
+## 输出结构
 
-## Downloading Your EPUB
+生成的 EPUB 包含：
 
-After generation, the file will be available for download. You can then:
-1. Download the EPUB to your computer
-2. Open it with your preferred ebook reader
-3. Transfer to your Kindle, iPad, or other device
-4. Upload directly to Kindle via email or cloud
-
-## Tips for Best Results
-
-1. **Use Proper Markdown Structure**: The skill works best when markdown follows standard conventions (H1 for titles, H2 for sections)
-
-2. **Clear Chapter Breaks**: Use H1 headers to clearly mark chapter divisions
-
-3. **Descriptive Headers**: Headers become the table of contents, so make them clear and descriptive
-
-4. **Content Organization**: Place content logically between headers
-
-5. **Supported Formatting**: Stick to basic markdown formatting for best compatibility across all readers
-
-## Troubleshooting
-
-**EPUB doesn't open**: Ensure your markdown is properly formatted. Check for matching brackets in links and proper syntax.
-
-**Table of contents is empty**: Make sure your markdown includes H1 headers to define chapters.
-
-**Formatting looks different**: EPUB readers apply their own fonts and styling. This is normal and expected behavior.
-
-## Scripts
-
-- `epub_generator.py` - Core EPUB file creation and formatting
-- `markdown_processor.py` - Markdown parsing and structure extraction
-- `cover_generator.py` - AI-powered book cover image generation
-
-## Future Enhancements
-
-- Kindle-specific optimizations (.mobi format)
-- Custom CSS styling per user preferences
-- Multi-document merging
-- Image embedding and optimization
-- Advanced metadata support
+```
+[书名].epub/
+├── mimetype
+├── META-INF/
+│   └── container.xml
+├── OEBPS/
+│   ├── content.opf          # 元数据清单
+│   ├── toc.ncx              # 导航文件
+│   ├── nav.xhtml            # EPUB3 导航
+│   ├── styles/
+│   │   └── style.css        # 样式表
+│   ├── images/
+│   │   ├── cover.jpg        # 封面
+│   │   └── ...              # 内容图片
+│   └── text/
+│       ├── cover.xhtml      # 封面页
+│       ├── toc.xhtml        # 目录页
+│       ├── ch01.xhtml       # 章节内容
+│       └── ...
+```

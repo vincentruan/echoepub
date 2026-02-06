@@ -13,7 +13,7 @@ A Claude Code skill that enables efficient reading of EPUB ebook files.
 
 ## Installation
 
-The skill is installed at `~/.claude/skills/epub/`. Restart Claude Code after installation for the skill to be discovered.
+The skill is installed at `./`. Restart Claude Code after installation for the skill to be discovered.
 
 ## Usage
 
@@ -34,19 +34,19 @@ The skill uses a TypeScript CLI tool under the hood:
 
 ```bash
 # View metadata
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js metadata "book.epub"
+node ./scripts/epub-reader/dist/index.js metadata "book.epub"
 
 # List table of contents
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js toc "book.epub"
+node ./scripts/epub-reader/dist/index.js toc "book.epub"
 
 # Read specific chapter (1-indexed)
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js chapter "book.epub" 3
+node ./scripts/epub-reader/dist/index.js chapter "book.epub" 3
 
 # Extract entire book
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js full "book.epub"
+node ./scripts/epub-reader/dist/index.js full "book.epub"
 
 # Search for text
-node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js search "book.epub" "query"
+node ./scripts/epub-reader/dist/index.js search "book.epub" "query"
 ```
 
 ## Technology Stack
@@ -62,7 +62,7 @@ node ~/.claude/skills/epub/scripts/epub-reader/dist/index.js search "book.epub" 
 To modify and rebuild:
 
 ```bash
-cd ~/.claude/skills/epub/scripts/epub-reader
+cd ./scripts/epub-reader
 npm install
 npm run build
 ```
