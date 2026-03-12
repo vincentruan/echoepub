@@ -212,15 +212,41 @@ class MarkdownProcessor:
             List of Chapter objects
         """
         # First, remove code blocks to avoid matching headers inside them
-        # We'll use a placeholder to mark where code blocks were
+        # Use a line-by-line approach that tracks code block state properly
         code_blocks = []
-        code_block_pattern = r'```[^\n]*\n.*?```'
+        lines = content.split('\n')
+        result_lines = []
+        in_code_block = False
 
-        def save_code_block(match):
-            code_blocks.append(match.group(0))
-            return f'\n__CODE_BLOCK_{len(code_blocks)-1}__\n'
+        for line in lines:
+            stripped = line.strip()
+            # Check for code block markers
+            if stripped.startswith('```'):
+                if in_code_block:
+                    # End current code block
+                    in_code_block = False
+                    result_lines.append(line)
+                    # Check if this line also starts a new code block (e.g., ```python after ```)
+                    # This handles cases where closing one block immediately opens another
+                    if stripped != '```' and len(stripped) > 3:
+                        # This is like ```python - it starts a new block
+                        in_code_block = True
+                else:
+                    # Start new code block
+                    in_code_block = True
+                    result_lines.append(line)
+            elif in_code_block:
+                # Inside code block - replace # comments with placeholders
+                if stripped.startswith('#'):
+                    idx = len(code_blocks)
+                    code_blocks.append(line)
+                    result_lines.append(f'__CODE_COMMENT_{idx}__')
+                else:
+                    result_lines.append(line)
+            else:
+                result_lines.append(line)
 
-        content_no_code = re.sub(code_block_pattern, save_code_block, content, flags=re.DOTALL)
+        content_no_code = '\n'.join(result_lines)
 
         # Split by H1 headers (now safe from code blocks)
         h1_pattern = r'^# (.+)$'
@@ -255,12 +281,12 @@ class MarkdownProcessor:
             # Get the chapter content from content_no_code
             chapter_content_no_code = content_no_code[start_no_code:end_no_code]
 
-            # Restore code blocks
-            def restore_code_block(match):
+            # Restore code comments
+            def restore_code_comment(match):
                 idx = int(match.group(1))
                 return code_blocks[idx]
 
-            chapter_content = re.sub(r'__CODE_BLOCK_(\d+)__', restore_code_block, chapter_content_no_code).rstrip()
+            chapter_content = re.sub(r'__CODE_COMMENT_(\d+)__', restore_code_comment, chapter_content_no_code).rstrip()
 
             # Parse sections within this chapter
             sections = self._parse_sections(chapter_content, 2)
