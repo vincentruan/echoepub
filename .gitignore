@@ -138,3 +138,8 @@ Thumbs.db
 
 # PyPI configuration file
 .pypirc
+
+# ignore oh-my-claudecode session files
+**/.omc/
+
+.claude/settings.local.json

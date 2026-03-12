@@ -563,4 +563,190 @@ program
     }
   });
 
+program
+  .command("convert")
+  .description("Convert EPUB to standard multi-file Markdown format")
+  .argument("<file>", "Path to EPUB file")
+  .option("-o, --output <dir>", "Output directory (default: same as EPUB file)")
+  .action(async (file: string, options: { output?: string }) => {
+    try {
+      const epub = await loadEpub(file);
+      const m = epub.metadata;
+
+      // Determine output directory
+      const epubPath = path.resolve(file);
+      const epubDir = path.dirname(epubPath);
+      const epubBasename = path.basename(epubPath, ".epub");
+      const outputDir = options.output
+        ? path.resolve(options.output)
+        : path.join(epubDir, `${epubBasename}_markdown`);
+
+      // Create output directory structure
+      fs.mkdirSync(outputDir, { recursive: true });
+      const imagesDir = path.join(outputDir, "images");
+      fs.mkdirSync(imagesDir, { recursive: true });
+
+      console.log(`Converting EPUB to Markdown format...`);
+      console.log(`Output directory: ${outputDir}\n`);
+
+      // Extract and save images
+      let imageCount = 0;
+      const imageMap = new Map<string, string>(); // Original path -> New path
+
+      for (const [id, item] of epub.manifest) {
+        if (item.mediaType.startsWith("image/")) {
+          const fullPath =
+            epub.contentBasePath === "."
+              ? item.href
+              : `${epub.contentBasePath}/${item.href}`;
+          const imageData = await epub.zip.file(fullPath)?.async("uint8array");
+
+          if (imageData) {
+            // Determine chapter subfolder from path
+            const pathParts = item.href.split("/");
+            const chapterNum = parseInt(pathParts[0], 10);
+            const chapterFolder = !isNaN(chapterNum) && chapterNum > 0
+              ? String(chapterNum).padStart(2, "0")
+              : "00";
+
+            const chapterImagesDir = path.join(imagesDir, chapterFolder);
+            if (!fs.existsSync(chapterImagesDir)) {
+              fs.mkdirSync(chapterImagesDir, { recursive: true });
+            }
+
+            // Generate image filename
+            const imageExt = path.extname(item.href) || ".jpg";
+            const imageFilename = `image_${String(imageCount + 1).padStart(3, "0")}${imageExt}`;
+            const imageOutputPath = path.join(chapterImagesDir, imageFilename);
+
+            fs.writeFileSync(imageOutputPath, imageData);
+            imageMap.set(item.href, `./images/${chapterFolder}/${imageFilename}`);
+            imageCount++;
+          }
+        }
+      }
+
+      console.log(`Extracted ${imageCount} images\n`);
+
+      // Generate table of contents file
+      const tocPath = path.join(outputDir, "00_目录.md");
+      let tocContent = `# ${m.title || "Untitled"}\n\n`;
+      if (m.author) tocContent += `> 作者：${m.author}\n\n`;
+      tocContent += `## 目录\n\n`;
+
+      const chapterInfo: Array<{ num: number; title: string; wordCount: number; imageCount: number }> = [];
+
+      // Process each chapter
+      for (let i = 0; i < epub.spine.length; i++) {
+        const { title, content } = await getChapterContent(epub, i);
+
+        // Sanitize title for filename
+        const safeTitle = title
+          .replace(/[<>:"/\\|?*]/g, "")
+          .replace(/\s+/g, "_")
+          .substring(0, 50);
+        const chapterNum = String(i + 1).padStart(2, "0");
+        const chapterFilename = `${chapterNum}_${safeTitle}.md`;
+        const chapterPath = path.join(outputDir, chapterFilename);
+
+        // Build chapter content: avoid duplicate title
+        // Check if content already starts with the title as a heading
+        // Split content into lines to check the first line
+        const firstLine = content.trimStart().split('\n')[0].trim();
+        const isDuplicateTitle = firstLine === `# ${title}` || firstLine === `#${title}`;
+
+        let chapterContent: string;
+        if (isDuplicateTitle) {
+          // Content already has the title, use it as-is (for TOC pages with minimal content)
+          chapterContent = content;
+        } else {
+          // Add title prefix
+          chapterContent = `# ${title}\n\n${content}`;
+        }
+
+        // Replace image references with local paths
+        for (const [origPath, newPath] of imageMap) {
+          // Try multiple path formats that might appear in HTML
+          const patternsToReplace = [
+            origPath,  // Original path
+            `../${origPath}`,  // Parent directory relative
+            `./${origPath}`,  // Current directory relative
+            `${origPath.replace(/^.*\//, "")}`  // Just filename
+          ];
+
+          for (const pattern of patternsToReplace) {
+            chapterContent = chapterContent.replace(
+              new RegExp(escapeRegex(pattern), "g"),
+              newPath
+            );
+          }
+        }
+
+        // Clean up any remaining ../ patterns in image links
+        chapterContent = chapterContent.replace(
+          /!\[([^\]]*)\]\(\.\.\/\.\/images\//g,
+          "![$1](./images/"
+        );
+
+        // Count images in this chapter
+        const chapterImages = Array.from(chapterContent.matchAll(/!\[.*?\]\(\.\/images\/[^)]+\)/g));
+        const imageCountInChapter = chapterImages.length;
+
+        fs.writeFileSync(chapterPath, chapterContent, "utf-8");
+
+        // Add to TOC
+        tocContent += `${i + 1}. [${title}](./${chapterFilename})\n`;
+
+        chapterInfo.push({
+          num: i + 1,
+          title,
+          wordCount: chapterContent.length,
+          imageCount: imageCountInChapter
+        });
+
+        console.log(`✓ Chapter ${i + 1}/${epub.spine.length}: ${title}`);
+      }
+
+      fs.writeFileSync(tocPath, tocContent, "utf-8");
+
+      // Generate report
+      const reportPath = path.join(outputDir, `${epubBasename}_report.md`);
+      let reportContent = `# EPUB 转换报告\n\n`;
+      reportContent += `## 基本信息\n`;
+      reportContent += `- 源文件：${path.basename(file)}\n`;
+      reportContent += `- 转换时间：${new Date().toLocaleString("zh-CN")}\n`;
+      reportContent += `- 章节数量：${epub.spine.length}\n\n`;
+
+      reportContent += `## 章节列表\n`;
+      reportContent += `| 序号 | 章节标题 | 字数 | 图片数 |\n`;
+      reportContent += `|------|----------|------|--------|\n`;
+      for (const info of chapterInfo) {
+        reportContent += `| ${String(info.num).padStart(2, "0")} | ${info.title.substring(0, 30)} | ${info.wordCount} | ${info.imageCount} |\n`;
+      }
+
+      reportContent += `\n## 图片处理\n`;
+      reportContent += `- 提取图片：${imageCount} 张\n`;
+      reportContent += `- 格式：JPG/PNG\n`;
+
+      reportContent += `\n## 备注\n`;
+      reportContent += `- ✅ 处理成功\n`;
+      reportContent += `- 📁 输出目录：${outputDir}\n`;
+
+      fs.writeFileSync(reportPath, reportContent, "utf-8");
+
+      console.log(`\n✅ Conversion complete!`);
+      console.log(`📁 Output directory: ${outputDir}`);
+      console.log(`📄 Generated files:`);
+      console.log(`   - 00_目录.md (目录)`);
+      console.log(`   - ${epub.spine.length} chapter files`);
+      console.log(`   - ${epubBasename}_report.md (处理报告)`);
+      console.log(`   - images/ (${imageCount} images)`);
+    } catch (error) {
+      console.error(
+        `Error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      process.exit(1);
+    }
+  });
+
 program.parse();

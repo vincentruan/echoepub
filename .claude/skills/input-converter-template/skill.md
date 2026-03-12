@@ -102,7 +102,29 @@ def convert(input_path: str, output_dir: str = None) -> dict:
 | 目录生成 | 生成 00_目录.md |
 | 图片提取 | 提取图片到 images/ 目录 |
 | 图片格式转换 | 非兼容格式转为 jpg/png |
+| 图片路径规范 | 使用 `./images/XX/image_XXX.ext` 格式（XX为章节编号） |
 | 处理报告 | 生成 _report.md |
+
+### 4.1 图片路径规范
+
+**重要**：所有图片引用必须使用相对路径，格式为 `./images/XX/image_XXX.ext`
+
+- `./` - 当前目录相对路径前缀
+- `images/` - 图片目录
+- `XX/` - 章节编号（两位数，如 01, 02）
+- `image_XXX.ext` - 图片文件名
+
+**示例**：
+```markdown
+![架构图](./images/03/image_001.jpg)
+![流程图](./images/03/image_002.png)
+```
+
+**错误示例**（不要使用）：
+```markdown
+![图片](../images/03/image_001.jpg)  ❌ 多了 ../
+![图片](images/03/image_001.jpg)     ❌ 缺少 ./
+```
 
 ### 5. 处理报告模板
 

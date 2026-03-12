@@ -156,8 +156,8 @@ def convert_pdf_to_markdown(pdf_path: str, output_dir: str = None):
                         with open(image_path, "wb") as img_file:
                             img_file.write(image_bytes)
                     
-                    # Add image reference to markdown
-                    relative_path = f"{base_name}_images/{image_filename}"
+                    # Add image reference to markdown (use ./ prefix for consistency)
+                    relative_path = f"./{base_name}_images/{image_filename}"
                     markdown_lines.append(f"![Image {image_count}]({relative_path})\n\n")
         
         doc.close()
