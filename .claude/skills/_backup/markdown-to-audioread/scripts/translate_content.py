@@ -102,9 +102,9 @@ def translate_with_api(
         Tuple of (translated_texts, success_flag)
     """
     try:
-        from siliconflow_client import get_siliconflow_client
+        from openai_client import get_openai_client
     except ImportError:
-        print("Warning: siliconflow_client not available. Using placeholder translations.")
+        print("Warning: openai_client not available. Using placeholder translations.")
         translations = [f"[API不可用] {p['text']}" for p in paragraphs]
         return translations, False
 
@@ -120,7 +120,7 @@ def translate_with_api(
     term_list = sorted(list(all_terms), key=len, reverse=True)[:20]
 
     try:
-        client = get_siliconflow_client()
+        client = get_openai_client()
 
         # Translate in batches
         texts = [p['text'] for p in paragraphs]
