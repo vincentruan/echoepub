@@ -143,3 +143,5 @@ Thumbs.db
 **/.omc/
 
 .claude/settings.local.json
+
+books/
