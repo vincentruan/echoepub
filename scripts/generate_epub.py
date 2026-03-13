@@ -83,12 +83,14 @@ def generate_programmatic_cover():
         img = Image.new('RGB', (width, height), color='#1a365d')  # Dark blue
         draw = ImageDraw.Draw(img)
 
-        # Try to use a nice font, fallback to default
+        # Increased font sizes for better Chinese character visibility
         try:
-            title_font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 48)
-            author_font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 24)
+            title_font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 72)
+            subtitle_font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 42)
+            author_font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 36)
         except:
             title_font = ImageFont.load_default()
+            subtitle_font = ImageFont.load_default()
             author_font = ImageFont.load_default()
 
         # Draw title
@@ -108,10 +110,10 @@ def generate_programmatic_cover():
 
         # Draw subtitle
         subtitle = "Anthropic 官方课程"
-        bbox = draw.textbbox((0, 0), subtitle, font=author_font)
+        bbox = draw.textbbox((0, 0), subtitle, font=subtitle_font)
         subtitle_width = bbox[2] - bbox[0]
         x = (width - subtitle_width) // 2
-        draw.text((x, 700), subtitle, fill='#718096', font=author_font)
+        draw.text((x, 700), subtitle, fill='#a0aec0', font=subtitle_font)
 
         # Save cover
         cover_path = INPUT_DIR.parent / "cover.jpg"
