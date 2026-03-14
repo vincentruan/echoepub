@@ -1,6 +1,6 @@
 ---
 name: pdf-to-markdown-converter
-description: Converts PDF files to Markdown format using PyMuPDF, extracting text content and embedded images. Fast and lightweight. Automatically fixes LaTeX umlauts (¨a → ä, etc.) and converts ß to ss (Swiss German). Use when converting PDFs to Markdown, extracting document content, or processing PDF files for text analysis. Generates one .md file and 0..n .png files for images.
+description: Convert PDF files to Markdown format using PyMuPDF. Extracts text content and embedded images, fixes LaTeX encoding issues. Use when converting PDFs to Markdown for audioread processing.
 ---
 
 # PDF to Markdown Converter
@@ -63,7 +63,7 @@ output_dir/
 
 If conversion fails:
 - Check PDF is not corrupted or password-protected
-- Verify Docling installation
+- Verify PyMuPDF installation (`pip install PyMuPDF`)
 - Ensure sufficient disk space for image extraction
 - Review console output for specific error messages
 

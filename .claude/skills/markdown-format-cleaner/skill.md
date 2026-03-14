@@ -156,6 +156,64 @@ $原文件名_markdown/
 
 ---
 
+## 示例
+
+### 示例 1：空行和列表修复
+
+**修复前：**
+```markdown
+# 第一章  介绍
+
+
+
+-  项目背景
+   *  技术选型
+      +  React
+```
+
+**修复后：**
+```markdown
+# 第一章  介绍
+
+- 项目背景
+  - 技术选型
+    - React
+```
+
+### 示例 2：未包裹代码块识别与包裹
+
+**修复前：**
+```markdown
+下面是核心实现：
+
+public void processOrder(Order order) {
+    if (order.isValid()) {
+        orderService.save(order);
+        notifyCustomer(order.getEmail());
+    }
+}
+
+这段代码处理了订单流程。
+```
+
+**修复后：**
+````markdown
+下面是核心实现：
+
+```java
+public void processOrder(Order order) {
+    if (order.isValid()) {
+        orderService.save(order);
+        notifyCustomer(order.getEmail());
+    }
+}
+```
+
+这段代码处理了订单流程。
+````
+
+---
+
 ## 依赖
 
 无外部依赖。纯 Agent 驱动，无需脚本。

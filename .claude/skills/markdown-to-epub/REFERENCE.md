@@ -94,9 +94,23 @@ create_epub_from_markdown(
     markdown_content: str,
     output_path: str,
     title: Optional[str] = None,
-    author: Optional[str] = None
+    author: Optional[str] = None,
+    base_path: Optional[str] = None,
+    cover_path: Optional[str] = None,
+    generate_cover: bool = False,
+    cover_style: str = "modern"
 ) -> bool
 ```
+
+Parameters:
+- `markdown_content`: Raw markdown text
+- `output_path`: Path where EPUB should be saved
+- `title`: Book title (optional, will use first H1 if not provided)
+- `author`: Author name (optional)
+- `base_path`: Base directory for resolving relative image paths
+- `cover_path`: Path to existing cover image (optional)
+- `generate_cover`: If True, generate cover using AI (requires SILICONFLOW_API_KEY)
+- `cover_style`: Style for AI-generated cover ('modern', 'classic', 'minimalist', 'artistic')
 
 ## HTML/XHTML Generation
 
@@ -319,7 +333,7 @@ Current test coverage:
 
 ## Version History
 
-**v1.0.0** (Current)
+**v1.0.0**
 - Initial release
 - Full markdown to EPUB conversion
 - YAML frontmatter support
@@ -327,18 +341,11 @@ Current test coverage:
 - EPUB3 compliance
 - Complete test suite
 
-## Future Roadmap
-
-**v1.1.0** (Planned)
-- Cover page generation
+**v1.1.0** (Current)
+- Cover page generation (AI and programmatic)
 - Custom CSS templates
-- Image embedding
-
-**v2.0.0** (Future)
-- Kindle format support (.mobi, .azw3)
-- Advanced table support
-- Footnotes and cross-references
-- Experimental MCP integration for cover images
+- Image embedding with format conversion
+- Base path support for relative image resolution
 
 ## Contributing
 

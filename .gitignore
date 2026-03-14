@@ -145,3 +145,5 @@ Thumbs.db
 .claude/settings.local.json
 
 books/
+prompts/
+tasks/

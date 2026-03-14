@@ -1,11 +1,28 @@
 ---
 name: epub-to-markdown-converter
-description: Convert EPUB ebook files to standard Markdown format. Extracts content by chapters, separates images, and generates a structured output with a table of contents file and individual chapter files. Use when converting EPUB to Markdown for further processing.
+description: Convert EPUB and other ebook formats (MOBI, AZW3, etc.) to standard Markdown format. Extracts content by chapters, separates images, and generates structured output. Non-EPUB formats are auto-converted via Calibre. Use when converting ebooks to Markdown for further processing.
 ---
 
-# EPUB to Markdown Converter
+# Ebook to Markdown Converter
 
-将 EPUB 电子书转换为标准 Markdown 格式，按章节拆分为多个文件，便于后续处理。
+将 EPUB 及其他电子书格式转换为标准 Markdown 格式，按章节拆分为多个文件，便于后续处理。
+
+## 支持格式
+
+| 格式 | 扩展名 | 依赖 |
+|------|--------|------|
+| EPUB | `.epub` | Node.js |
+| MOBI | `.mobi` | Node.js + Calibre |
+| AZW3/AZW | `.azw3`, `.azw` | Node.js + Calibre |
+| FB2 | `.fb2` | Node.js + Calibre |
+| DJVU | `.djvu` | Node.js + Calibre |
+| LIT | `.lit` | Node.js + Calibre |
+| ODT | `.odt` | Node.js + Calibre |
+| RTF | `.rtf` | Node.js + Calibre |
+| CHM | `.chm` | Node.js + Calibre |
+| 其他 Calibre 格式 | `.cbz`, `.cbr`, `.lrf`, `.prc`, `.pdb`, `.pml`, `.rb`, `.snb`, `.tcr`, `.txt` | Node.js + Calibre |
+
+> 非 EPUB 格式通过 Calibre 的 `ebook-convert` 先转为 EPUB，再提取 Markdown。
 
 ## 输出格式
 
@@ -78,6 +95,20 @@ node ./scripts/epub-reader/dist/index.js convert "<path-to-epub>" [output-dir]
 - `path-to-epub`: EPUB 文件路径
 - `output-dir`: 可选，输出目录，默认为 EPUB 文件同级目录
 
+### 7. 转换非 EPUB 格式（MOBI、AZW3 等）
+
+非 EPUB 格式先通过 Calibre 转为 EPUB，再执行标准转换：
+
+```bash
+# 步骤 1: 预转换为 EPUB
+python ./scripts/ebook_preconvert.py "<path-to-mobi-or-other>" "/tmp/output.epub"
+
+# 步骤 2: 转换 EPUB 为 Markdown（同上述第 6 步）
+node ./scripts/epub-reader/dist/index.js convert "/tmp/output.epub" [output-dir]
+```
+
+也可以让 Agent 自动串联两步，只需提供输入文件路径即可。
+
 ## 推荐工作流
 
 1. **查看元数据** 了解书籍基本信息
@@ -144,6 +175,7 @@ node ./scripts/epub-reader/dist/index.js convert "<path-to-epub>" [output-dir]
 - 大型书籍使用 `full` 命令可能产生大量输出
 - 搜索结果每章最多显示 5 个匹配项
 - 图片会自动转换为 EPUB 兼容格式（jpg/png）
+- 非 EPUB 格式需要安装 Calibre（`brew install --cask calibre`）
 
 ## 开放式搜索
 
@@ -153,7 +185,31 @@ node ./scripts/epub-reader/dist/index.js convert "<path-to-epub>" [output-dir]
 2. 并行运行多个搜索
 3. 综合和去重结果
 
+## 开发
+
+修改和重新构建：
+
+```bash
+cd scripts/epub-reader
+npm install
+npm run build
+```
+
+修改 SKILL.md 后需重启 Claude Code 生效。
+
 ## 脚本位置
 
 - CLI 工具：`scripts/epub-reader/dist/index.js`
 - 转换逻辑：`scripts/epub-reader/src/`
+- 格式预转换：`scripts/ebook_preconvert.py`（非 EPUB 格式 → EPUB）
+
+## 变更记录
+
+### 2025-11-26: TOC 章节导航修复
+
+- TOC 现在显示内联章节引用：`Chapter Five [ch: 14]`
+- 修复了标题提取逻辑，通过 href 搜索嵌套 TOC 树而非假设索引对齐
+
+### 2025-11-26: 开放式搜索
+
+- 支持概念性查询的 LLM 辅助查询扩展（如"这本书的主题是什么"）

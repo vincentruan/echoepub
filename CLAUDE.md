@@ -27,6 +27,7 @@ The codebase is organized around a modular three-step document processing pipeli
 | EPUB | `epub-to-markdown-converter` | 提取章节、文本、图片 |
 | PDF | `pdf-to-markdown-converter` | PDF 转 Markdown，提取图片 |
 | Markdown | `markdown-converter` | 拆分章节，规范化结构 |
+| MOBI/AZW3 等 | `epub-to-markdown-converter` | 通过 Calibre 预转换为 EPUB 后提取（需要 Calibre）|
 | 其他格式 | 参考 `input-converter-template` 创建 | 扩展支持 |
 
 **输出格式统一**：所有转换器输出相同的标准目录结构
@@ -196,7 +197,7 @@ for wd_file in glob.glob("*_with_descriptions.md"):
 
 ```
 .claude/skills/
-├── epub-to-markdown-converter/   # EPUB 转 Markdown
+├── epub-to-markdown-converter/   # EPUB/MOBI/AZW3 等电子书转 Markdown（非 EPUB 需要 Calibre）
 ├── pdf-to-markdown-converter/    # PDF 转 Markdown
 ├── markdown-converter/           # Markdown 格式化
 ├── markdown-content-enhancer/    # 内容增强（图片/代码/表格描述）
@@ -237,4 +238,13 @@ pip install ebooklib Pillow PyMuPDF requests
 
 ```bash
 pip install pygments
+```
+
+MOBI/AZW3 支持（需要 Calibre）：
+
+```bash
+# macOS
+brew install --cask calibre
+# Linux
+sudo apt-get install calibre
 ```

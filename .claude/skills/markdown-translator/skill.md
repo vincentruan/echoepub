@@ -144,6 +144,52 @@ $原文件名_markdown/
 
 ---
 
+## 示例
+
+### 示例 1：全文翻译（英文文档）
+
+**翻译前：**
+```markdown
+# Introduction to Microservices
+
+Microservices architecture breaks down applications into small, independent services.
+Each service runs in its own process and communicates via lightweight APIs such as REST or gRPC.
+
+```python
+@app.route('/api/orders')
+def get_orders():
+    return jsonify(orders)
+```
+```
+
+**翻译后：**
+```markdown
+# 微服务简介
+
+微服务架构将应用程序拆分为小型、独立的服务。
+每个服务运行在自己的进程中，通过轻量级 API（如 REST 或 gRPC）进行通信。
+
+```python
+@app.route('/api/orders')
+def get_orders():
+    return jsonify(orders)
+```
+```
+
+### 示例 2：跳过翻译（中文技术文档）
+
+**输入：**
+```markdown
+# 系统架构设计
+
+本系统采用 Spring Boot 框架，使用 MySQL 作为主数据库，Redis 作为缓存层。
+API 网关基于 Kong 实现，支持 OAuth 2.0 认证。
+```
+
+**结果：** 中文占比 > 70%，直接复制到 `_translated/`，不做翻译。
+
+---
+
 ## 依赖
 
 无外部依赖。纯 Agent 驱动，Agent 自身具备高质量翻译能力，无需调用外部 API。
