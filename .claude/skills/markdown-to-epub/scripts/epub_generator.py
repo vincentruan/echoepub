@@ -21,7 +21,7 @@ from markdown_processor import (
 
 # Try to import cover generator (optional dependency)
 try:
-    from cover_generator import CoverGenerator, generate_cover_from_markdown
+    from cover_generator import CoverGenerator, generate_cover_from_markdown, generate_hybrid_cover
     COVER_GENERATOR_AVAILABLE = True
 except ImportError:
     COVER_GENERATOR_AVAILABLE = False
@@ -301,7 +301,7 @@ class EPUBGenerator:
         output_path: Optional[str] = None
     ) -> Tuple[bool, str]:
         """
-        Generate a cover image using AI.
+        Generate a cover image using AI with title text overlay.
 
         Args:
             chapter_titles: List of chapter titles for context
@@ -318,10 +318,12 @@ class EPUBGenerator:
         if not output_path and self.base_path:
             output_path = str(Path(self.base_path) / "cover.jpg")
 
-        success, result = generate_cover_from_markdown(
+        # Use hybrid cover (AI illustration + text overlay) for proper title rendering
+        success, result = generate_hybrid_cover(
             title=self.metadata.title or "Untitled",
-            chapters=chapter_titles,
             author=self.metadata.author,
+            subtitle=None,
+            chapters=chapter_titles,
             output_path=output_path,
             style=style
         )

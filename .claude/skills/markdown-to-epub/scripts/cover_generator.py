@@ -3,6 +3,10 @@ EPUB cover image generation module.
 
 This module generates book cover images using SiliconFlow's image generation API
 based on the book title and table of contents.
+
+Supports two modes:
+1. Illustration mode: Generate themed illustration for cover background
+2. Full cover mode: Generate complete cover with illustration background
 """
 
 import os
@@ -11,6 +15,7 @@ import requests
 import tempfile
 from pathlib import Path
 from typing import Optional, List, Tuple
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 
 class CoverGenerator:
@@ -85,6 +90,9 @@ class CoverGenerator:
         """
         Build the image generation prompt based on book metadata.
 
+        Generates a full-bleed themed illustration that fills the entire cover.
+        The illustration is designed for text overlay (title, author will be added programmatically).
+
         Args:
             title: Book title
             chapters: List of chapter titles
@@ -94,46 +102,199 @@ class CoverGenerator:
         Returns:
             Prompt string for image generation
         """
-        # Analyze title and chapters to extract themes
+        # Analyze title and chapters to extract themes and subject
         themes = self._extract_themes(title, chapters)
+        subject = self._extract_subject(title, chapters)
 
-        # Style-specific prompt templates
-        style_prompts = {
+        # Build illustration prompt based on book subject
+        illustration_prompt = self._build_illustration_prompt(subject, themes, style)
+
+        return illustration_prompt
+
+    def _extract_subject(
+        self,
+        title: str,
+        chapters: Optional[List[str]] = None
+    ) -> str:
+        """
+        Extract the main subject/category of the book for illustration generation.
+
+        Args:
+            title: Book title
+            chapters: List of chapter titles
+
+        Returns:
+            Subject description for illustration
+        """
+        all_text = title
+        if chapters:
+            all_text += " " + " ".join(chapters[:10])
+
+        # Subject mapping with specific illustration elements
+        subject_keywords = {
+            # 技术类
+            "architecture": {
+                "keywords": ["架构", "架构师", "系统", "微服务", "分布式", "设计模式", "软件"],
+                "illustration": "software architecture blueprints, server racks, network diagrams, code flowing like rivers, circuit board patterns, floating geometric structures representing modules and components, technical schematics with glowing nodes"
+            },
+            "programming": {
+                "keywords": ["编程", "代码", "程序", "开发", "算法", "数据结构", "Python", "Java", "Go"],
+                "illustration": "cascading code streams, abstract binary patterns, glowing syntax highlighting colors, programming symbols forming landscapes, developer tools transforming into art"
+            },
+            "ai": {
+                "keywords": ["AI", "人工智能", "机器学习", "深度学习", "神经网络", "GPT", "LLM"],
+                "illustration": "neural network visualization with glowing nodes, robot silhouettes, digital brain patterns, data streams converging into intelligence, futuristic AI landscape"
+            },
+            # 商业管理类
+            "business": {
+                "keywords": ["商业", "企业", "管理", "创业", "公司", "市场", "营销", "战略", "领导"],
+                "illustration": "abstract business growth charts as mountain peaks, interconnected gears and people silhouettes, city skyline with data overlays, professional geometric patterns suggesting progress and teamwork"
+            },
+            "finance": {
+                "keywords": ["金融", "经济", "货币", "投资", "财富", "股票", "基金", "理财", "资产"],
+                "illustration": "golden coins and charts forming abstract art, currency symbols in elegant patterns, financial growth visualization as ascending stairs, wealth represented through artistic golden streams"
+            },
+            # 科技类
+            "internet": {
+                "keywords": ["互联网", "网络", "电商", "平台", "产品", "运营", "流量"],
+                "illustration": "global network connections, data flowing across continents, digital marketplace visualization, user icons connecting in patterns, web of light representing connectivity"
+            },
+            # 哲学思想类
+            "philosophy": {
+                "keywords": ["哲学", "思想", "思维", "认知", "人生", "智慧", "道理", "逻辑", "思考"],
+                "illustration": "abstract thought bubbles merging, brain-shaped constellations, zen garden patterns, philosophical symbols floating in ethereal space, light representing enlightenment"
+            },
+            # 历史类
+            "history": {
+                "keywords": ["历史", "朝代", "改革", "古代", "王朝", "皇帝", "年代", "战争", "革命"],
+                "illustration": "ancient scrolls and artifacts, historical timeline as a flowing river, classical architecture silhouettes, sepia-toned historical scenes blending into modern times"
+            },
+            # 科学类
+            "science": {
+                "keywords": ["科学", "物理", "化学", "生物", "数学", "宇宙", "量子", "实验"],
+                "illustration": "atomic structures and molecular patterns, mathematical equations as art, scientific instruments in abstract form, galaxy and microscopic worlds juxtaposed"
+            },
+            # 文学艺术类
+            "literature": {
+                "keywords": ["小说", "文学", "诗歌", "散文", "故事", "艺术", "音乐", "电影"],
+                "illustration": "flowing ink patterns, book pages transforming into birds, artistic brushstrokes, creative inspiration represented as light, poetic imagery"
+            },
+            # 自我提升类
+            "self-improvement": {
+                "keywords": ["成长", "成功", "习惯", "时间", "效率", "学习", "方法", "技巧", "提升"],
+                "illustration": "ascending stairs to light, growing tree metaphors, clock and compass motifs, person silhouette reaching upward, path from darkness to light"
+            },
+        }
+
+        # Find matching subject
+        for subject_name, subject_info in subject_keywords.items():
+            for keyword in subject_info["keywords"]:
+                if keyword in all_text:
+                    return subject_info["illustration"]
+
+        # Default: abstract knowledge/learning theme
+        return "abstract flowing knowledge patterns, books transforming into light, learning journey visualization, elegant geometric shapes suggesting growth and wisdom, soft gradients with depth"
+
+    def _build_illustration_prompt(
+        self,
+        subject: str,
+        themes: List[str],
+        style: str
+    ) -> str:
+        """
+        Build a detailed illustration prompt for book cover.
+
+        Creates a full-bleed illustration designed for text overlay.
+
+        Args:
+            subject: Subject illustration description
+            themes: List of themes
+            style: Cover style
+
+        Returns:
+            Complete illustration prompt
+        """
+        # Style-specific visual direction (for illustration style, not text)
+        style_directions = {
             "modern": (
-                "A modern, professional book cover design with clean lines and "
-                "contemporary aesthetics. Subtle gradient background with elegant typography area. "
+                "Modern minimalist style with clean lines and contemporary aesthetics. "
+                "Use a cohesive color palette with 2-3 main colors. "
+                "Subtle gradient backgrounds with depth. "
+                "Geometric elements with soft shadows. "
             ),
             "classic": (
-                "A classic, timeless book cover design with traditional elegance. "
-                "Rich textures, ornate borders, and sophisticated color palette. "
+                "Classic elegant style with rich textures and traditional aesthetics. "
+                "Use warm, sophisticated color palette. "
+                "Ornate borders and decorative elements. "
+                "Artistic brushwork with painterly quality. "
             ),
             "minimalist": (
-                "A minimalist book cover design with maximum whitespace. "
-                "Single focal element, clean typography, limited color palette. "
+                "Minimalist style with maximum negative space for text overlay. "
+                "Single focal point illustration. "
+                "Limited color palette with strong contrast. "
+                "Clean, simple composition. "
             ),
             "artistic": (
-                "An artistic, creative book cover design with expressive visuals. "
-                "Abstract elements, bold colors, and unique artistic interpretation. "
+                "Artistic expressive style with bold colors and creative interpretation. "
+                "Abstract and impressionistic elements. "
+                "Dynamic composition with visual impact. "
+                "Unique artistic vision. "
             ),
         }
 
-        base_prompt = style_prompts.get(style, style_prompts["modern"])
+        style_direction = style_directions.get(style, style_directions["modern"])
 
-        # Build the complete prompt
-        prompt_parts = [
-            base_prompt,
-            f"Theme: {', '.join(themes)}. ",
-            "Professional book cover suitable for e-books. ",
-            "High quality, detailed, visually appealing. ",
-            "Leave space at the top for book title. ",
-            "No text or letters in the image. ",
-        ]
+        # Color scheme suggestions based on themes
+        color_hints = self._get_color_hints(themes)
 
-        # Add author context if provided
-        if author:
-            prompt_parts.append(f"Suitable for an author named {author}. ")
+        # Build the complete illustration prompt
+        # Key: NO text/letters, FULL BLEED, designed for text overlay
+        prompt = (
+            # Subject illustration
+            f"{subject}. "
+            # Style direction
+            f"{style_direction}"
+            # Color hints
+            f"{color_hints} "
+            # Technical requirements
+            "Full bleed illustration covering entire canvas. "
+            "No text, no letters, no words, no typography in the image. "
+            "Leave upper portion relatively simple for title text overlay. "
+            "Professional book cover illustration quality. "
+            "High detail, visually striking, suitable for commercial publication. "
+            "3:4 aspect ratio composition. "
+        )
 
-        return "".join(prompt_parts)
+        return prompt
+
+    def _get_color_hints(self, themes: List[str]) -> str:
+        """
+        Get color palette suggestions based on themes.
+
+        Args:
+            themes: List of themes
+
+        Returns:
+            Color hint string
+        """
+        theme_colors = {
+            "technology": "Use cool blues, teals, and silver accents",
+            "business": "Use navy blue, gold, and white",
+            "finance": "Use gold, deep green, and cream",
+            "philosophy": "Use deep purple, cream, and soft gold",
+            "history": "Use warm sepia, burgundy, and aged paper tones",
+            "science": "Use vibrant blues, greens, and electric accents",
+            "literature": "Use rich burgundy, cream, and artistic splashes",
+            "self-improvement": "Use warm oranges, blues, and white",
+            "growth": "Use greens, blues, and golden yellow",
+            "crisis": "Use dramatic reds, dark blues, and amber highlights",
+        }
+
+        for theme in themes:
+            if theme in theme_colors:
+                return theme_colors[theme]
+
+        return "Use a harmonious professional color palette"
 
     def _extract_themes(
         self,
@@ -271,6 +432,297 @@ class CoverGenerator:
 
         return str(path)
 
+    def generate_hybrid_cover(
+        self,
+        title: str,
+        author: Optional[str] = None,
+        subtitle: Optional[str] = None,
+        chapters: Optional[List[str]] = None,
+        output_path: Optional[str] = None,
+        style: str = "modern",
+        image_size: str = None
+    ) -> Tuple[bool, str]:
+        """
+        Generate a complete book cover with AI illustration + text overlay.
+
+        This method:
+        1. Generates a themed illustration using AI (no text)
+        2. Overlays title, author, and subtitle using proper fonts
+
+        Args:
+            title: Book title
+            author: Author name
+            subtitle: Subtitle or tagline
+            chapters: List of chapter titles for theme extraction
+            output_path: Where to save the final cover
+            style: Cover style
+            image_size: Image size in "widthxheight" format
+
+        Returns:
+            Tuple of (success: bool, image_path: str or error_message: str)
+        """
+        size = image_size or self.DEFAULT_SIZE
+
+        # Step 1: Generate illustration background
+        prompt = self._build_prompt(title, chapters, author, style)
+
+        try:
+            image_url = self._call_api(prompt, size)
+        except Exception as e:
+            return False, f"AI illustration generation failed: {str(e)}"
+
+        # Step 2: Download illustration
+        try:
+            temp_path = self._download_image(image_url, None, title)
+        except Exception as e:
+            return False, f"Illustration download failed: {str(e)}"
+
+        # Step 3: Add text overlay
+        try:
+            final_path = self._add_text_overlay(
+                illustration_path=temp_path,
+                title=title,
+                author=author,
+                subtitle=subtitle,
+                output_path=output_path,
+                style=style
+            )
+
+            # Clean up temp file if different from output
+            if temp_path != final_path:
+                Path(temp_path).unlink(missing_ok=True)
+
+            return True, final_path
+        except Exception as e:
+            return False, f"Text overlay failed: {str(e)}"
+
+    def _add_text_overlay(
+        self,
+        illustration_path: str,
+        title: str,
+        author: Optional[str],
+        subtitle: Optional[str],
+        output_path: Optional[str],
+        style: str
+    ) -> str:
+        """
+        Add text overlay to illustration background.
+
+        Layout:
+        - Top 30%: Title area with semi-transparent overlay
+        - Middle: Illustration (visible)
+        - Bottom 20%: Author name
+
+        Args:
+            illustration_path: Path to AI-generated illustration
+            title: Book title
+            author: Author name
+            subtitle: Subtitle
+            output_path: Output path
+            style: Style for font selection
+
+        Returns:
+            Path to final cover image
+        """
+        # Load illustration
+        img = Image.open(illustration_path)
+        width, height = img.size
+        draw = ImageDraw.Draw(img)
+
+        # Load fonts
+        fonts = self._load_cover_fonts()
+
+        # Add semi-transparent overlay at top for better text readability
+        overlay_height = int(height * 0.35)
+        overlay = Image.new('RGBA', (width, overlay_height), (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+
+        # Gradient overlay (top to transparent)
+        for y in range(overlay_height):
+            alpha = int(120 * (1 - y / overlay_height))  # Fade from 120 to 0
+            overlay_draw.line([(0, y), (width, y)], fill=(0, 0, 0, alpha))
+
+        # Paste overlay onto image
+        img = img.convert('RGBA')
+        img.paste(overlay, (0, 0), overlay)
+        draw = ImageDraw.Draw(img)
+
+        # Draw title (centered, top third)
+        title_font = fonts['title']
+        title_lines = self._wrap_text_for_cover(title, title_font, width - 80)
+        title_y = height * 0.12
+
+        for line in title_lines:
+            bbox = draw.textbbox((0, 0), line, font=title_font)
+            text_width = bbox[2] - bbox[0]
+            x = (width - text_width) / 2
+
+            # Draw text shadow for better visibility
+            draw.text((x + 2, title_y + 2), line, font=title_font, fill=(0, 0, 0, 180))
+            draw.text((x, title_y), line, font=title_font, fill=(255, 255, 255, 255))
+            title_y += title_font.size + 15
+
+        # Draw subtitle if provided
+        if subtitle:
+            subtitle_font = fonts['subtitle']
+            bbox = draw.textbbox((0, 0), subtitle, font=subtitle_font)
+            text_width = bbox[2] - bbox[0]
+            x = (width - text_width) / 2
+            y = height * 0.28
+
+            draw.text((x + 1, y + 1), subtitle, font=subtitle_font, fill=(0, 0, 0, 150))
+            draw.text((x, y), subtitle, font=subtitle_font, fill=(220, 220, 220, 255))
+
+        # Draw decorative line
+        line_y = height * 0.32
+        line_width = min(200, width * 0.3)
+        line_x = (width - line_width) / 2
+        draw.rectangle(
+            [line_x, line_y, line_x + line_width, line_y + 3],
+            fill=(255, 255, 255, 200)
+        )
+
+        # Draw author at bottom
+        if author:
+            author_font = fonts['author']
+            author_text = f"{author} 著"
+            bbox = draw.textbbox((0, 0), author_text, font=author_font)
+            text_width = bbox[2] - bbox[0]
+            x = (width - text_width) / 2
+            y = height - 120
+
+            # Add subtle background for author
+            padding = 20
+            bg_bbox = [
+                x - padding, y - 10,
+                x + text_width + padding, y + author_font.size + 10
+            ]
+            draw.rectangle(bg_bbox, fill=(0, 0, 0, 100))
+
+            draw.text((x + 1, y + 1), author_text, font=author_font, fill=(0, 0, 0, 150))
+            draw.text((x, y), author_text, font=author_font, fill=(255, 255, 255, 255))
+
+        # Convert back to RGB and save
+        img = img.convert('RGB')
+
+        if output_path:
+            final_path = output_path
+        else:
+            safe_title = re.sub(r'[^\w\s-]', '', title)[:30].strip()
+            safe_title = re.sub(r'[-\s]+', '_', safe_title)
+            final_path = str(Path(illustration_path).parent / f"cover_{safe_title}_final.jpg")
+
+        img.save(final_path, 'JPEG', quality=95)
+        return final_path
+
+    def _load_cover_fonts(self) -> dict:
+        """
+        Load fonts for cover text rendering.
+
+        Returns:
+            Dictionary with 'title', 'subtitle', 'author' fonts
+        """
+        fonts = {}
+
+        # Try to load Chinese fonts
+        font_candidates = [
+            # macOS
+            "/System/Library/Fonts/PingFang.ttc",
+            "/System/Library/Fonts/Hiragino Sans GB.ttc",
+            "/System/Library/Fonts/STHeiti Light.ttc",
+            # Windows
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+            "C:/Windows/Fonts/simsun.ttc",
+            # Linux
+            "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+            "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+            "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        ]
+
+        font_path = None
+        for candidate in font_candidates:
+            if candidate and os.path.exists(candidate):
+                font_path = candidate
+                break
+
+        try:
+            if font_path:
+                fonts['title'] = ImageFont.truetype(font_path, 68)
+                fonts['subtitle'] = ImageFont.truetype(font_path, 32)
+                fonts['author'] = ImageFont.truetype(font_path, 36)
+            else:
+                fonts['title'] = ImageFont.load_default()
+                fonts['subtitle'] = ImageFont.load_default()
+                fonts['author'] = ImageFont.load_default()
+        except Exception:
+            fonts['title'] = ImageFont.load_default()
+            fonts['subtitle'] = ImageFont.load_default()
+            fonts['author'] = ImageFont.load_default()
+
+        return fonts
+
+    def _wrap_text_for_cover(
+        self,
+        text: str,
+        font: ImageFont.FreeTypeFont,
+        max_width: int
+    ) -> List[str]:
+        """
+        Wrap text to fit within max_width for cover display.
+
+        Args:
+            text: Text to wrap
+            font: Font to use
+            max_width: Maximum width per line
+
+        Returns:
+            List of text lines
+        """
+        # For Chinese text, check character by character
+        if all('\u4e00' <= c <= '\u9fff' or c in '，。、：；！？""''（）—…' for c in text):
+            lines = []
+            current_line = ""
+
+            for char in text:
+                test_line = current_line + char
+                bbox = font.getbbox(test_line)
+                width = bbox[2] - bbox[0]
+
+                if width <= max_width:
+                    current_line = test_line
+                else:
+                    if current_line:
+                        lines.append(current_line)
+                    current_line = char
+
+            if current_line:
+                lines.append(current_line)
+
+            return lines if lines else [text]
+
+        # For mixed or English text, use word-based wrapping
+        words = text.split()
+        lines = []
+        current_line = []
+
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            bbox = font.getbbox(test_line)
+            width = bbox[2] - bbox[0]
+
+            if width <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+
+        if current_line:
+            lines.append(' '.join(current_line))
+
+        return lines if lines else [text]
+
 
 def generate_cover_from_markdown(
     title: str,
@@ -281,7 +733,9 @@ def generate_cover_from_markdown(
     api_key: Optional[str] = None
 ) -> Tuple[bool, str]:
     """
-    Convenience function to generate a book cover.
+    Convenience function to generate a book cover (illustration only, no text).
+
+    For complete covers with text overlay, use generate_hybrid_cover() instead.
 
     Args:
         title: Book title
@@ -307,26 +761,98 @@ def generate_cover_from_markdown(
         return False, str(e)
 
 
+def generate_hybrid_cover(
+    title: str,
+    author: Optional[str] = None,
+    subtitle: Optional[str] = None,
+    chapters: Optional[List[str]] = None,
+    output_path: Optional[str] = None,
+    style: str = "modern",
+    api_key: Optional[str] = None
+) -> Tuple[bool, str]:
+    """
+    Generate a complete book cover with AI illustration + text overlay.
+
+    This is the recommended method for generating professional book covers:
+    - AI generates a themed illustration that fills the entire cover
+    - Chinese/English text (title, author, subtitle) is rendered with proper fonts
+    - Layout: Title at top, illustration in middle, author at bottom
+
+    Args:
+        title: Book title (supports Chinese, English, and other languages)
+        author: Author name
+        subtitle: Optional subtitle or tagline
+        chapters: List of chapter titles for theme extraction
+        output_path: Where to save the final cover image
+        style: Cover style ('modern', 'classic', 'minimalist', 'artistic')
+        api_key: SiliconFlow API key (optional, uses env var if not provided)
+
+    Returns:
+        Tuple of (success: bool, image_path or error_message: str)
+    """
+    try:
+        generator = CoverGenerator(api_key=api_key)
+        return generator.generate_hybrid_cover(
+            title=title,
+            author=author,
+            subtitle=subtitle,
+            chapters=chapters,
+            output_path=output_path,
+            style=style
+        )
+    except ValueError as e:
+        return False, str(e)
+
+
 if __name__ == "__main__":
     # Example usage
     import sys
 
     if len(sys.argv) < 2:
-        print("Usage: python cover_generator.py <book_title> [chapter1] [chapter2] ...")
+        print("Usage: python cover_generator.py <book_title> [--author <name>] [--hybrid]")
+        print("")
+        print("Options:")
+        print("  --author <name>  Specify author name")
+        print("  --hybrid         Generate hybrid cover with text overlay (recommended)")
+        print("")
+        print("Examples:")
+        print("  python cover_generator.py '架构师之路' --author '沈剑' --hybrid")
         sys.exit(1)
 
+    # Parse arguments
     book_title = sys.argv[1]
-    chapter_titles = sys.argv[2:] if len(sys.argv) > 2 else None
+    author_name = None
+    use_hybrid = False
+
+    i = 2
+    while i < len(sys.argv):
+        if sys.argv[i] == '--author' and i + 1 < len(sys.argv):
+            author_name = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == '--hybrid':
+            use_hybrid = True
+            i += 1
+        else:
+            i += 1
 
     print(f"Generating cover for: {book_title}")
-    if chapter_titles:
-        print(f"Chapters: {chapter_titles}")
+    if author_name:
+        print(f"Author: {author_name}")
+    if use_hybrid:
+        print("Mode: Hybrid (AI illustration + text overlay)")
 
-    success, result = generate_cover_from_markdown(
-        title=book_title,
-        chapters=chapter_titles,
-        style="modern"
-    )
+    if use_hybrid:
+        success, result = generate_hybrid_cover(
+            title=book_title,
+            author=author_name,
+            style="modern"
+        )
+    else:
+        success, result = generate_cover_from_markdown(
+            title=book_title,
+            author=author_name,
+            style="modern"
+        )
 
     if success:
         print(f"Cover generated successfully: {result}")

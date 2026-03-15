@@ -67,33 +67,83 @@ create_epub_from_markdown(
 
 ### 1. 封面生成
 
-支持两种封面生成方式：
+支持三种封面生成方式：
 
-#### AI 封面（推荐）
+#### 混合封面（推荐）
 
-使用 SiliconFlow API 生成专业封面：
+AI 生成主题插画 + 程序化渲染中英文文字，完美支持中文：
 
 ```python
-create_epub_from_folder(
-    folder_path=path,
-    generate_cover=True,
-    cover_style="modern"  # modern, classic, minimalist, artistic
+from cover_generator import generate_hybrid_cover
+
+success, result = generate_hybrid_cover(
+    title="架构师之路",
+    author="沈剑",
+    subtitle="从程序员到架构师",
+    output_path="cover.jpg",
+    style="modern"
 )
 ```
+
+**特点**：
+- AI 生成铺满封面的主题插画（根据书名和内容智能匹配）
+- 中文/英文字体完美渲染（使用系统字体）
+- 标准布局：标题在上，插画居中，作者在下
 
 **环境变量**：`SILICONFLOW_API_KEY`
 
-#### 程序化封面
+#### AI 插画封面
 
-无需 API，自动生成简洁封面：
+仅生成 AI 插画背景，不含文字：
 
 ```python
-create_epub_from_folder(
-    folder_path=path,
-    generate_cover=True,
-    use_programmatic_cover=True
+from cover_generator import generate_cover_from_markdown
+
+success, result = generate_cover_from_markdown(
+    title="书名",
+    author="作者",
+    output_path="cover.jpg",
+    style="modern"
 )
 ```
+
+#### 程序化封面
+
+无需 API，自动生成简洁封面（支持中文）：
+
+```python
+from programmatic_cover import generate_programmatic_cover
+
+success, result = generate_programmatic_cover(
+    title="书名",
+    author="作者",
+    output_path="cover.jpg",
+    style="modern"
+)
+```
+
+### 封面风格
+
+| 风格 | 特点 | 适用场景 |
+|------|------|----------|
+| `modern` | 现代简约，冷色调 | 技术类、商业类 |
+| `classic` | 经典优雅，暖色调 | 文学类、历史类 |
+| `minimalist` | 极简留白 | 哲学类、思想类 |
+| `artistic` | 艺术创意 | 设计类、艺术类 |
+
+### 主题识别
+
+混合封面会根据书名和章节自动识别主题，生成匹配的插画：
+
+| 主题关键词 | 插画元素 |
+|------------|----------|
+| 架构、系统、微服务 | 软件架构图、服务器、网络拓扑 |
+| 编程、代码、算法 | 代码流、二进制模式、编程符号 |
+| AI、机器学习 | 神经网络、机器人、数字大脑 |
+| 商业、管理、创业 | 商业图表、城市天际线、齿轮协作 |
+| 金融、经济、投资 | 金色流线、货币符号、财富增长 |
+| 哲学、思维、认知 | 抽象思维泡泡、禅意图案、光与智慧 |
+| 历史、朝代、古代 | 古卷、历史长河、古典建筑 |
 
 ### 2. 目录生成
 
@@ -223,8 +273,8 @@ pip install requests
 |------|------|
 | `epub_generator.py` | EPUB 文件生成核心 |
 | `markdown_processor.py` | Markdown 解析和 HTML 转换 |
-| `cover_generator.py` | AI 封面生成 |
-| `programmatic_cover.py` | 程序化封面生成 |
+| `cover_generator.py` | AI 封面生成 + 混合封面（推荐） |
+| `programmatic_cover.py` | 程序化封面生成（支持中文） |
 | `convert_images.py` | 图片格式转换 |
 
 ## 错误处理
