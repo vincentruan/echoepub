@@ -5,12 +5,17 @@
 
 结合章节上下文和图片内容，调用第三方视觉模型生成一段连贯的中文描述，
 使读者即使不看图片，也能通过文字理解上下文的完整信息。
+
+支持模式:
+- 描述模式（默认）: 为图片生成中文描述
+- OCR模式 (--ocr-code): 识别代码截图，提取代码文本
 """
 
 import re
 import os
+import argparse
 from pathlib import Path
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 
 
 class ImageDescriptor:
@@ -214,28 +219,147 @@ def describe_images_in_markdown(
     return '\n'.join(processed_lines), stats
 
 
+def ocr_images_in_markdown(
+    markdown_content: str,
+    images_dir: str,
+    ocr_instance=None,
+) -> Tuple[str, Dict]:
+    """
+    处理 Markdown 中的图片，使用 OCR 提取代码文本。
+
+    识别代码截图并提取其中的代码，替换图片引用为 ``` 代码块。
+
+    Args:
+        markdown_content: 原始 Markdown 内容
+        images_dir: 图片目录路径
+        ocr_instance: CodeImageOCR 实例
+
+    Returns:
+        (processed_markdown, stats_dict)
+    """
+    from code_image_ocr import CodeImageOCR, get_ocr_instance
+
+    if ocr_instance is None:
+        ocr_instance = get_ocr_instance()
+
+    lines = markdown_content.split('\n')
+    processed_lines = []
+
+    stats = {
+        'total_images': 0,
+        'ocr_success': 0,
+        'ocr_failed': 0,
+        'skipped': 0,
+        'failed_images': [],
+        'ocr_results': [],  # Store (image_path, code) tuples
+    }
+
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        img_match = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)', line)
+
+        if not img_match:
+            processed_lines.append(line)
+            i += 1
+            continue
+
+        stats['total_images'] += 1
+        alt_text, img_path = img_match.groups()
+
+        # 提取上下文：前后各 10 行
+        ctx_start = max(0, i - 10)
+        ctx_end = min(len(lines), i + 11)
+        context = '\n'.join(
+            lines[ctx_start:i] + lines[i + 1:ctx_end]
+        )
+
+        # 解析图片实际路径
+        if img_path.startswith(('http://', 'https://')):
+            stats['skipped'] += 1
+            processed_lines.append(line)
+            i += 1
+            continue
+
+        img_path_clean = img_path.lstrip('./')
+        if img_path_clean.startswith('images/'):
+            full_image_path = Path(images_dir).parent / img_path_clean
+        else:
+            full_image_path = Path(images_dir) / img_path_clean
+
+        # 尝试 OCR 提取代码
+        code_block, failure_reason = ocr_instance.ocr_code_image(
+            str(full_image_path), context
+        )
+
+        if code_block:
+            # 替换图片引用为代码块
+            processed_lines.append(f"<!-- Original image: {img_path} -->")
+            processed_lines.append("")
+            processed_lines.append(code_block)
+            processed_lines.append("")
+            stats['ocr_success'] += 1
+            stats['ocr_results'].append((str(full_image_path), code_block[:100] + '...'))
+        else:
+            # OCR 失败，保留图片引用
+            processed_lines.append(line)
+            stats['ocr_failed'] += 1
+            stats['failed_images'].append((str(full_image_path), failure_reason))
+
+        i += 1
+
+    return '\n'.join(processed_lines), stats
+
+
 if __name__ == "__main__":
-    import sys
+    parser = argparse.ArgumentParser(
+        description='处理 Markdown 中的图片'
+    )
+    parser.add_argument('markdown_file', help='Markdown 文件路径')
+    parser.add_argument('images_dir', help='图片目录路径')
+    parser.add_argument('--ocr-code', action='store_true',
+                        help='OCR 模式：识别代码截图并提取代码文本')
 
-    if len(sys.argv) < 3:
-        print("Usage: python image_descriptor.py <markdown_file> <images_dir>")
-        sys.exit(1)
+    args = parser.parse_args()
 
-    md_file = sys.argv[1]
-    images_dir = sys.argv[2]
+    md_file = args.markdown_file
+    images_dir = args.images_dir
 
     with open(md_file, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    desc = ImageDescriptor()
-    processed, stats = describe_images_in_markdown(content, images_dir, desc)
+    if args.ocr_code:
+        # OCR 模式：提取代码截图中的代码
+        processed, stats = ocr_images_in_markdown(content, images_dir)
 
-    print(f"处理 {stats['total_images']} 张图片")
-    print(f"  已描述: {stats['described']}")
-    print(f"  已跳过: {stats['skipped']}")
-    print(f"  失败: {stats['failed']}")
+        print(f"处理 {stats['total_images']} 张图片 (OCR 模式)")
+        print(f"  OCR 成功: {stats['ocr_success']}")
+        print(f"  OCR 失败: {stats['ocr_failed']}")
+        print(f"  已跳过: {stats['skipped']}")
 
-    output_file = Path(md_file).parent / f"{Path(md_file).stem}_with_descriptions.md"
+        if stats['failed_images']:
+            print("\n失败详情:")
+            for img_path, reason in stats['failed_images']:
+                print(f"  - {img_path}: {reason}")
+
+        output_file = Path(md_file).parent / f"{Path(md_file).stem}_with_ocr.md"
+    else:
+        # 描述模式：生成图片描述
+        desc = ImageDescriptor()
+        processed, stats = describe_images_in_markdown(content, images_dir, desc)
+
+        print(f"处理 {stats['total_images']} 张图片")
+        print(f"  已描述: {stats['described']}")
+        print(f"  已跳过: {stats['skipped']}")
+        print(f"  失败: {stats['failed']}")
+
+        if stats['failed_images']:
+            print("\n失败详情:")
+            for img_path, reason in stats['failed_images']:
+                print(f"  - {img_path}: {reason}")
+
+        output_file = Path(md_file).parent / f"{Path(md_file).stem}_with_descriptions.md"
+
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(processed)
 

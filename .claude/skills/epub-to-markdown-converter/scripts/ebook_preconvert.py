@@ -60,13 +60,14 @@ def is_supported_format(file_path: str) -> bool:
     return Path(file_path).suffix.lower() in CALIBRE_INPUT_FORMATS
 
 
-def convert_to_epub(input_path: str, output_path: str = None) -> str:
+def convert_to_epub(input_path: str, output_path: str = None, optimized_mobi: bool = True) -> str:
     """
     Convert an ebook file to EPUB using Calibre.
 
     Args:
         input_path: Path to the input ebook file
         output_path: Optional output EPUB path. If None, uses a temp directory.
+        optimized_mobi: Use optimized flags for MOBI/AZW3 files (default True)
 
     Returns:
         str: Path to the generated EPUB file
@@ -92,9 +93,26 @@ def convert_to_epub(input_path: str, output_path: str = None) -> str:
         output_path = str(Path(temp_dir) / f"{input_file.stem}.epub")
 
     print(f"Converting {input_file.suffix.upper()[1:]} to EPUB: {input_file.name}")
+
+    # Build command with optimized flags for MOBI/AZW3
+    cmd = [ebook_convert, str(input_file), output_path]
+
+    # Apply optimized flags for MOBI/AZW3 to reduce duplicate chapters and improve TOC
+    if optimized_mobi and input_file.suffix.lower() in {'.mobi', '.azw3', '.azw', '.prc'}:
+        optimized_flags = [
+            '--disable-font-rescaling',      # Preserve original fonts
+            '--no-chapters-in-toc',          # Avoid duplicate TOC entries from chapter marks
+            '--use-auto-toc',                # Generate TOC from headings instead of metadata
+            '--toc-threshold', '3',          # Minimum chapters for TOC generation
+            '--chapter-mark', 'pagebreak',   # Use pagebreaks for chapter detection
+            '--language', 'en',              # Explicit language for better processing
+        ]
+        cmd.extend(optimized_flags)
+        print(f"  Using optimized MOBI conversion flags")
+
     try:
         subprocess.run(
-            [ebook_convert, str(input_file), output_path],
+            cmd,
             capture_output=True,
             text=True,
             check=True,

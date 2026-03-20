@@ -57,6 +57,71 @@ turndown.addRule("preserveLineBreaks", {
   replacement: () => "\n",
 });
 
+/**
+ * Detect if a blockquote element contains code-like content.
+ * This handles cases where Calibre MOBI→EPUB conversion wraps code in <blockquote> tags.
+ *
+ * Detection heuristics:
+ * - Contains Java keywords: public, private, class, void, return, import, package, static, final, new
+ * - Contains code patterns: braces {}, semicolons, camelCase method calls
+ * - Contains annotations: @Override, @Test, @Autowired, @Inject, etc.
+ * - Contains Java types: String, int, boolean, List, Map, Set, etc.
+ */
+turndown.addRule("blockquoteCodeDetection", {
+  filter: "blockquote",
+  replacement: (content: string) => {
+    // Check if content looks like code
+    const codeIndicators = [
+      // Java keywords
+      /\b(public|private|protected|class|interface|enum|void|int|boolean|char|long|double|float|short|byte)\b/,
+      // Java modifiers and control flow
+      /\b(static|final|abstract|return|new|this|super|extends|implements)\b/,
+      // Control structures
+      /\b(if|else|for|while|switch|case|break|continue|try|catch|finally|throw|throws)\b/,
+      // Import/package statements
+      /\b(import|package)\s+[\w.]+;/,
+      // Annotations
+      /@\w+/,
+      // Method signatures with camelCase
+      /\w+\s*\([^)]*\)\s*\{/,
+      // Semicolons at end of lines (code statements)
+      /;\s*$/m,
+      // Multiple braces (code blocks)
+      /\{[\s\S]*\}/,
+      // Java types with generics
+      /\b(List|Map|Set|Collection|Optional|Stream|ArrayList|HashMap|HashSet)<\w+>/,
+      // Common Java patterns
+      /\bSystem\.(out|err)\.print/,
+      /\.equals\(|\.toString\(|\.hashCode\(/,
+      // Semicolons and braces combination
+      /;.*\{/m,
+    ];
+
+    const isCode = codeIndicators.some(pattern => pattern.test(content));
+
+    if (isCode) {
+      // Determine the language (default to java for now)
+      let language = "java";
+
+      // Detect other languages
+      if (/\bdef\s+\w+\s*\(/.test(content) || /\bimport\s+\w+/.test(content) && /\bself\b/.test(content)) {
+        language = "python";
+      } else if (/\bfunction\s+\w+\s*\(/.test(content) || /\bconst\s+\w+\s*=|let\s+\w+\s*=/.test(content)) {
+        language = "javascript";
+      } else if (/\bSELECT\b/i.test(content) || /\bFROM\b/i.test(content) || /\bWHERE\b/i.test(content)) {
+        language = "sql";
+      }
+
+      // Return as fenced code block, preserving the content
+      const trimmedContent = content.trim();
+      return `\n\`\`\`${language}\n${trimmedContent}\n\`\`\`\n`;
+    }
+
+    // Not code, return as regular blockquote
+    return `\n> ${content.trim().replace(/\n/g, "\n> ")}\n`;
+  },
+});
+
 async function loadEpub(filePath: string): Promise<ParsedEpub> {
   const absolutePath = path.resolve(filePath);
 
