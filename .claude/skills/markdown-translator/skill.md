@@ -92,10 +92,61 @@ $原文件名_markdown/
 ### 翻译质量要求
 - 保持学术/专业语气
 - 翻译为简体中文
+- **完整翻译原则**：每个句子要么完整翻译为中文，要么保持原文，禁止中英混杂的"半翻译"
+- **条目标题保留**：技术书籍中的 "Item XX:" 格式标题保持英文，如 `Item 26: Don't use raw types` 不翻译
 - 技术术语首次出现时可保留原文并附中文解释，如：`API（应用程序编程接口）`
 - 后续出现直接使用原文术语
 - 不添加任何解释、注释或评论
 - 仅输出翻译后的文本
+
+### 常见错误示例
+
+**❌ 错误：中英混杂的半翻译**
+```
+Item 26: Don't use 原始类型s
+
+A class or interface whose declaration has one or more 类型参数s is a generic class.
+```
+
+**✅ 正确：完整翻译或保持原文**
+```
+Item 26: Don't use raw types
+
+声明中包含一个或多个类型参数的类或接口是泛型类。
+```
+
+**❌ 错误：术语部分翻译**
+```
+Each 泛型类型 defines a set of 参数化类型s
+```
+
+**✅ 正确：完整翻译**
+```
+每个泛型类型定义了一组参数化类型
+```
+
+### 技术术语翻译对照表
+
+以下术语在散文中应翻译为中文：
+
+| 英文 | 中文 |
+|------|------|
+| static factory method | 静态工厂方法 |
+| constructor | 构造器 |
+| immutable | 不可变 |
+| singleton | 单例 |
+| instance-controlled | 实例受控的 |
+| parameterized type | 参数化类型 |
+| raw type | 原始类型 |
+| wildcard type | 通配符类型 |
+| type parameter | 类型参数 |
+| generic type | 泛型类型 |
+
+以下术语保持英文不翻译：
+- 类名：`List`, `String`, `Boolean`, `BigInteger` 等
+- 方法名：`valueOf`, `toString`, `getInstance` 等
+- 关键字：`public`, `private`, `static`, `final`, `void` 等（在代码块中）
+- 书籍条目标题：`Item 26:`, `Item 42:` 等
 
 ---
 

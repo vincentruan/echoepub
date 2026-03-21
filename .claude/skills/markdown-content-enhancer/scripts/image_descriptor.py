@@ -132,6 +132,7 @@ def describe_images_in_markdown(
     markdown_content: str,
     images_dir: str,
     descriptor: Optional[ImageDescriptor] = None,
+    auto_ocr_code: bool = True,
 ) -> Tuple[str, Dict]:
     """
     处理 Markdown 中的图片，调用视觉模型获取描述。
@@ -143,11 +144,21 @@ def describe_images_in_markdown(
         markdown_content: 原始 Markdown 内容
         images_dir: 图片目录路径
         descriptor: ImageDescriptor 实例（为 None 时跳过 AI 处理）
+        auto_ocr_code: 是否自动检测并 OCR 代码截图（默认 True）
 
     Returns:
         (processed_markdown, stats_dict)
     """
     use_ai = descriptor is not None
+
+    # Import OCR module if auto-ocr is enabled
+    ocr_instance = None
+    if auto_ocr_code:
+        try:
+            from code_image_ocr import CodeImageOCR
+            ocr_instance = CodeImageOCR()
+        except ImportError:
+            pass  # OCR module not available, skip
 
     lines = markdown_content.split('\n')
     processed_lines = []
@@ -155,26 +166,25 @@ def describe_images_in_markdown(
     stats = {
         'total_images': 0,
         'described': 0,
+        'ocr_success': 0,
+        'ocr_failed': 0,
         'skipped': 0,
         'failed': 0,
         'failed_images': [],
     }
 
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
         img_match = re.match(r'^!\[([^\]]*)\]\(([^)]+)\)', line)
 
         if not img_match:
             processed_lines.append(line)
+            i += 1
             continue
 
         stats['total_images'] += 1
         alt_text, img_path = img_match.groups()
-
-        processed_lines.append(line)
-
-        if not use_ai:
-            stats['skipped'] += 1
-            continue
 
         # 提取上下文：前后各 10 行
         ctx_start = max(0, i - 10)
@@ -186,6 +196,8 @@ def describe_images_in_markdown(
         # 解析图片实际路径
         if img_path.startswith(('http://', 'https://')):
             stats['skipped'] += 1
+            processed_lines.append(line)
+            i += 1
             continue
 
         img_path_clean = img_path.lstrip('./')
@@ -195,26 +207,58 @@ def describe_images_in_markdown(
             full_image_path = Path(images_dir) / img_path_clean
 
         # 检查是否跳过
-        if descriptor.should_skip(context, alt_text, str(full_image_path)):
+        if use_ai and descriptor.should_skip(context, alt_text, str(full_image_path)):
             stats['skipped'] += 1
+            processed_lines.append(line)
+            i += 1
             continue
 
-        # 生成描述
-        description, failure_reason = descriptor.describe(
-            str(full_image_path), context
-        )
+        # Step 1: 尝试 OCR 代码截图检测
+        is_code_screenshot = False
+        if ocr_instance and use_ai:
+            is_code, _ = ocr_instance.is_likely_code_screenshot(str(full_image_path), context)
+            if is_code:
+                is_code_screenshot = True
+                code_block, failure_reason = ocr_instance.ocr_code_image(
+                    str(full_image_path), context
+                )
+                if code_block:
+                    # 替换图片引用为代码块
+                    processed_lines.append(f"<!-- Code extracted from: {img_path} -->")
+                    processed_lines.append("")
+                    processed_lines.append(code_block)
+                    processed_lines.append("")
+                    stats['ocr_success'] += 1
+                    i += 1
+                    continue
+                else:
+                    stats['ocr_failed'] += 1
+                    # OCR 失败，继续尝试生成描述
 
-        if description:
-            # 以特殊标记输出，供 Agent 后续处理
-            processed_lines.append("")
-            processed_lines.append(f"<!-- IMAGE_DESCRIPTION: {description} -->")
-            processed_lines.append("")
-            stats['described'] += 1
-        else:
-            stats['failed'] += 1
-            stats['failed_images'].append(
-                (str(full_image_path), failure_reason)
+        # Step 2: 生成图片描述
+        if use_ai:
+            description, failure_reason = descriptor.describe(
+                str(full_image_path), context
             )
+
+            if description:
+                processed_lines.append(line)
+                # 以特殊标记输出，供 Agent 后续处理
+                processed_lines.append("")
+                processed_lines.append(f"<!-- IMAGE_DESCRIPTION: {description} -->")
+                processed_lines.append("")
+                stats['described'] += 1
+            else:
+                processed_lines.append(line)
+                stats['failed'] += 1
+                stats['failed_images'].append(
+                    (str(full_image_path), failure_reason)
+                )
+        else:
+            processed_lines.append(line)
+            stats['skipped'] += 1
+
+        i += 1
 
     return '\n'.join(processed_lines), stats
 
@@ -319,6 +363,8 @@ if __name__ == "__main__":
     parser.add_argument('images_dir', help='图片目录路径')
     parser.add_argument('--ocr-code', action='store_true',
                         help='OCR 模式：识别代码截图并提取代码文本')
+    parser.add_argument('--no-auto-ocr', action='store_true',
+                        help='禁用自动代码截图 OCR 检测')
 
     args = parser.parse_args()
 
@@ -329,7 +375,7 @@ if __name__ == "__main__":
         content = f.read()
 
     if args.ocr_code:
-        # OCR 模式：提取代码截图中的代码
+        # 纯 OCR 模式：提取代码截图中的代码
         processed, stats = ocr_images_in_markdown(content, images_dir)
 
         print(f"处理 {stats['total_images']} 张图片 (OCR 模式)")
@@ -344,12 +390,17 @@ if __name__ == "__main__":
 
         output_file = Path(md_file).parent / f"{Path(md_file).stem}_with_ocr.md"
     else:
-        # 描述模式：生成图片描述
+        # 描述模式：生成图片描述（默认自动 OCR 代码截图）
         desc = ImageDescriptor()
-        processed, stats = describe_images_in_markdown(content, images_dir, desc)
+        auto_ocr = not args.no_auto_ocr
+        processed, stats = describe_images_in_markdown(content, images_dir, desc, auto_ocr_code=auto_ocr)
 
         print(f"处理 {stats['total_images']} 张图片")
         print(f"  已描述: {stats['described']}")
+        if stats.get('ocr_success', 0) > 0:
+            print(f"  OCR 代码: {stats['ocr_success']}")
+        if stats.get('ocr_failed', 0) > 0:
+            print(f"  OCR 失败: {stats['ocr_failed']}")
         print(f"  已跳过: {stats['skipped']}")
         print(f"  失败: {stats['failed']}")
 

@@ -28,17 +28,25 @@ class CodeImageOCR:
     # Aspect ratios typical for code screenshots (width/height)
     # Code is usually wider than tall
     MIN_ASPECT_RATIO = 0.5  # Not too tall
-    MAX_ASPECT_RATIO = 4.0  # Not too wide
+    MAX_ASPECT_RATIO = 20.0  # Code can be very wide (single line code)
 
     # Patterns that suggest this is NOT a code screenshot
     SKIP_PATTERNS = [
         r'二维码|qr|qrcode',
-        r'封面|cover|书皮',
+        r'封面|cover|书皮|title.?page',
         r'作者|author|portrait|头像',
         r'logo|icon|图标|徽章',
         r'decoration|装饰|背景',
         r'emoji|表情',
     ]
+
+    # Aspect ratios typical for covers/portraits (should skip)
+    # Covers are usually portrait (aspect < 0.85)
+    # Code is usually landscape (aspect > 1.0)
+    COVER_MAX_ASPECT_RATIO = 0.85  # Portrait images are likely covers
+
+    # Minimum aspect ratio for code (code is usually wider)
+    CODE_MIN_ASPECT_RATIO = 1.0
 
     # Patterns that suggest this IS a code screenshot
     CODE_INDICATORS = [
@@ -90,8 +98,14 @@ class CodeImageOCR:
                 width, height = img.size
                 aspect_ratio = width / height if height > 0 else 0
 
-                if aspect_ratio < self.MIN_ASPECT_RATIO:
-                    return False, f"Aspect ratio too tall ({aspect_ratio:.2f})"
+                # Skip portrait images (likely covers)
+                if aspect_ratio < self.COVER_MAX_ASPECT_RATIO:
+                    return False, f"Portrait image, likely cover ({aspect_ratio:.2f} < {self.COVER_MAX_ASPECT_RATIO})"
+
+                # Code screenshots should be landscape (wider than tall)
+                if aspect_ratio < self.CODE_MIN_ASPECT_RATIO:
+                    return False, f"Aspect ratio not typical for code ({aspect_ratio:.2f} < {self.CODE_MIN_ASPECT_RATIO})"
+
                 if aspect_ratio > self.MAX_ASPECT_RATIO:
                     return False, f"Aspect ratio too wide ({aspect_ratio:.2f})"
         except Exception as e:
@@ -109,7 +123,8 @@ class CodeImageOCR:
         if has_code_context:
             return True, "Context indicates code"
 
-        return True, "Meets code screenshot criteria"
+        # By default, require landscape aspect ratio for code
+        return False, "No code indicators found in context"
 
     def ocr_code_image(
         self,

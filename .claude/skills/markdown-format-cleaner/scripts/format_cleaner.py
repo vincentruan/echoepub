@@ -206,6 +206,8 @@ class FormatCleaner:
         | Term | Example | Item |
         |------|---------|------|
         | Parameterized type | List<String> | Item 26 |
+
+        Also handles 3+ column tables by detecting repeating patterns.
         """
         lines = content.split('\n')
         result = []
@@ -229,27 +231,35 @@ class FormatCleaner:
                     i += 1
 
                     # Stop after collecting a reasonable number of items
-                    if len(quote_items) > 10:
+                    if len(quote_items) > 30:
                         break
 
-                # Check if this could be a table (even number of items, short items)
-                if len(quote_items) >= 4 and len(quote_items) % 2 == 0:
+                # Try to detect table structure
+                if len(quote_items) >= 6:
                     # Check if items are short (table cells)
                     avg_len = sum(len(item) for item in quote_items) / len(quote_items)
                     if avg_len < 50:
-                        # Try to form a 2-column table
-                        half = len(quote_items) // 2
-                        headers = quote_items[:half]
-                        values = quote_items[half:]
+                        # Try to detect column count by finding repeating pattern
+                        col_count = self._detect_table_columns(quote_items)
 
-                        # Check if first row looks like headers
-                        if all(len(h) < 30 for h in headers):
-                            # Build table
-                            result.append('| ' + ' | '.join(headers) + ' |')
-                            result.append('| ' + ' | '.join(['---'] * len(headers)) + ' |')
-                            result.append('| ' + ' | '.join(values) + ' |')
-                            result.append('')
-                            continue
+                        if col_count and len(quote_items) % col_count == 0:
+                            num_rows = len(quote_items) // col_count
+
+                            # Check if first row looks like headers
+                            headers = quote_items[:col_count]
+                            if all(len(h) < 30 for h in headers):
+                                # Build table
+                                result.append('| ' + ' | '.join(headers) + ' |')
+                                result.append('| ' + ' | '.join(['---'] * col_count) + ' |')
+
+                                # Add data rows
+                                for row_idx in range(1, num_rows):
+                                    row_start = row_idx * col_count
+                                    row_data = quote_items[row_start:row_start + col_count]
+                                    result.append('| ' + ' | '.join(row_data) + ' |')
+
+                                result.append('')
+                                continue
 
                 # Not a table, keep as is
                 for item in quote_items:
@@ -259,6 +269,41 @@ class FormatCleaner:
                 i += 1
 
         return '\n'.join(result)
+
+    def _detect_table_columns(self, items: List[str]) -> Optional[int]:
+        """
+        Detect the number of columns in a potential table.
+
+        Looks for repeating patterns in the first few items.
+        Common patterns: 2, 3, or 4 columns.
+        """
+        if len(items) < 6:
+            return None
+
+        # Try different column counts
+        for col_count in [3, 4, 2]:
+            if len(items) % col_count != 0:
+                continue
+
+            num_rows = len(items) // col_count
+            if num_rows < 2:
+                continue
+
+            # Check if headers (first row) look like table headers
+            headers = items[:col_count]
+            header_chars = sum(len(h) for h in headers)
+
+            # Headers should be relatively short
+            if header_chars > col_count * 25:
+                continue
+
+            # Check if subsequent rows have similar length pattern
+            first_row_len = sum(len(items[col_count + j]) for j in range(col_count))
+
+            # This looks like a valid table structure
+            return col_count
+
+        return None
 
     def fix_code_indentation(self, content: str) -> str:
         """
@@ -335,8 +380,7 @@ class FormatCleaner:
         """Apply all cleaning transformations."""
         # Order matters: quote conversion before table reconstruction
         content = self.convert_quote_code_blocks(content)
-        # Skip table reconstruction for performance - not critical for code-heavy docs
-        # content = self.reconstruct_tables(content)
+        content = self.reconstruct_tables(content)
         content = self.fix_code_indentation(content)
         content = self.normalize_whitespace(content)
         return content
