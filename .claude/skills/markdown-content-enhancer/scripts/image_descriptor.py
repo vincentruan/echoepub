@@ -14,8 +14,69 @@
 import re
 import os
 import argparse
+import json
+import hashlib
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List
+
+
+class ImageDescriptionCache:
+    """Cache for image descriptions to avoid re-processing."""
+
+    def __init__(self, cache_dir: str = None):
+        if cache_dir:
+            self.cache_dir = Path(cache_dir)
+        else:
+            self.cache_dir = Path.home() / '.cache' / 'echoepub' / 'image_descriptions'
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_file = self.cache_dir / 'descriptions_cache.json'
+        self.cache = self._load_cache()
+
+    def _load_cache(self) -> Dict:
+        """Load cache from file."""
+        if self.cache_file.exists():
+            try:
+                with open(self.cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+
+    def _save_cache(self) -> None:
+        """Save cache to file."""
+        with open(self.cache_file, 'w', encoding='utf-8') as f:
+            json.dump(self.cache, f, ensure_ascii=False, indent=2)
+
+    def _get_cache_key(self, image_path: str) -> str:
+        """Generate cache key from image path and modification time."""
+        path = Path(image_path)
+        mtime = path.stat().st_mtime if path.exists() else 0
+        content = f"{image_path}:{mtime}"
+        return hashlib.md5(content.encode()).hexdigest()
+
+    def get(self, image_path: str) -> Optional[str]:
+        """Get cached description if available."""
+        key = self._get_cache_key(image_path)
+        entry = self.cache.get(key)
+        if entry:
+            return entry.get('description')
+        return None
+
+    def set(self, image_path: str, description: str) -> None:
+        """Cache a description."""
+        key = self._get_cache_key(image_path)
+        self.cache[key] = {
+            'path': image_path,
+            'description': description,
+            'timestamp': os.path.getmtime(image_path) if Path(image_path).exists() else 0
+        }
+        self._save_cache()
+
+    def clear(self) -> None:
+        """Clear the cache."""
+        self.cache = {}
+        if self.cache_file.exists():
+            self.cache_file.unlink()
 
 
 class ImageDescriptor:
@@ -40,8 +101,8 @@ class ImageDescriptor:
     # 跳过的最小图片尺寸（像素）
     MIN_DIMENSION = 50
 
-    def __init__(self):
-        pass
+    def __init__(self, use_cache: bool = True):
+        self.cache = ImageDescriptionCache() if use_cache else None
 
     def should_skip(self, context: str, alt_text: str = "", image_path: str = "") -> bool:
         """
@@ -108,6 +169,12 @@ class ImageDescriptor:
         if path.suffix.lower() in self.UNSUPPORTED_FORMATS:
             return None, f"不支持的图片格式 {path.suffix.upper()}"
 
+        # Check cache first
+        if self.cache:
+            cached = self.cache.get(image_path)
+            if cached:
+                return cached, None
+
         try:
             from openai_client import get_openai_client
             client = get_openai_client()
@@ -118,7 +185,11 @@ class ImageDescriptor:
             )
 
             if description:
-                return description.strip(), None
+                description = description.strip()
+                # Cache the result
+                if self.cache:
+                    self.cache.set(image_path, description)
+                return description, None
             else:
                 return None, "视觉模型分析未返回有效结果"
 

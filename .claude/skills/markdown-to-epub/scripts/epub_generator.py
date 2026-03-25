@@ -582,7 +582,7 @@ class EPUBGenerator:
                 )
 
     def _add_toc(self) -> None:
-        """Add table of contents to EPUB."""
+        """Add table of contents to EPUB with proper hierarchy support."""
         if not self.book or not self.toc_items:
             return
 
@@ -599,18 +599,43 @@ class EPUBGenerator:
             if chapter_link:
                 if sections:
                     # Chapter with sections - create nested structure
+                    # Group sections by level for proper hierarchy
                     section_links = []
+                    current_h2_sections = []
+                    last_h2_section = None
+
                     for section in sections:
-                        # Add anchor to section headers in rendered HTML
-                        section_links.append(
-                            epub.Link(
-                                f"{chapter_link.file_name}#{section.anchor}",
-                                section.title,
-                                f"sec_{section.anchor}"
-                            )
+                        section_link = epub.Link(
+                            f"{chapter_link.file_name}#{section.anchor}",
+                            section.title,
+                            f"sec_{section.anchor}"
                         )
-                    # Add chapter with nested sections as tuple
-                    toc_items.append((chapter_link, section_links))
+
+                        if section.level == 2:
+                            # H2 section - can have H3+ children
+                            if last_h2_section and current_h2_sections:
+                                # Previous H2 has children, add as tuple
+                                section_links.append((last_h2_section, current_h2_sections))
+                                current_h2_sections = []
+                            last_h2_section = section_link
+                        elif section.level >= 3 and last_h2_section:
+                            # H3+ section - nest under current H2
+                            current_h2_sections.append(section_link)
+                        else:
+                            # Standalone section (no H2 parent)
+                            section_links.append(section_link)
+
+                    # Handle last H2 with children
+                    if last_h2_section and current_h2_sections:
+                        section_links.append((last_h2_section, current_h2_sections))
+                    elif last_h2_section:
+                        section_links.append(last_h2_section)
+
+                    # Add chapter with nested sections
+                    if section_links:
+                        toc_items.append((chapter_link, section_links))
+                    else:
+                        toc_items.append(chapter_link)
                 else:
                     # Chapter without sections
                     toc_items.append(chapter_link)
